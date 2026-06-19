@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Slide Studio</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%2314130f'/%3E%3Crect x='7' y='9' width='18' height='14' rx='2' fill='none' stroke='%23b45309' stroke-width='2.4'/%3E%3Cline x1='7' y1='19' x2='25' y2='19' stroke='%23b45309' stroke-width='2.4'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="/src/styles/tokens.css" />
   <link rel="stylesheet" href="/src/styles/editor.css" />
 </head>
@@ -35,17 +36,45 @@
       <button class="btn btn--icon" data-action="undo" title="Annulla (⌘Z)" disabled>↶</button>
       <button class="btn btn--icon" data-action="redo" title="Ripeti (⇧⌘Z)" disabled>↷</button>
       <span class="topbar__sep"></span>
-      <button class="btn btn--icon" data-action="add-text" title="Aggiungi testo">T</button>
-      <button class="btn btn--icon" data-action="add-box" title="Aggiungi rettangolo">▭</button>
-      <button class="btn btn--icon" data-action="add-image" title="Aggiungi immagine">▣</button>
+      <button class="btn" data-action="add-text" title="Aggiungi una casella di testo"><span class="btn__ic">T</span> Testo</button>
+      <button class="btn" data-action="add-box" title="Aggiungi una forma"><span class="btn__ic">▢</span> Forma</button>
+      <button class="btn" data-action="add-image" title="Aggiungi un'immagine"><span class="btn__ic">▣</span> Immagine</button>
     </div>
 
     <div class="topbar__spacer"></div>
 
     <div class="topbar__group">
+      <button class="btn btn--icon" data-action="help" title="Aiuto: gesti e scorciatoie" aria-label="Aiuto">?</button>
       <button class="btn btn--ghost" data-action="present" title="Presenta a schermo intero">Presenta ▸</button>
     </div>
   </header>
+
+  <!-- Help popover (gesti + scorciatoie) -->
+  <div id="help-pop" class="help" hidden>
+    <div class="help__card">
+      <button class="help__close" data-action="help-close" aria-label="Chiudi">✕</button>
+      <h3 class="help__title">Come si usa</h3>
+      <div class="help__cols">
+        <div>
+          <h4>Gesti</h4>
+          <ul>
+            <li><b>Doppio click</b> su un testo → modifica</li>
+            <li><b>Trascina</b> un elemento → sposta <span class="help__k">snap automatico · Alt = libero</span></li>
+            <li><b>Maniglie</b> → ridimensiona <span class="help__k">Shift = mantieni proporzioni</span></li>
+            <li><b>Trascina un file .html</b> nella finestra → importa deck</li>
+          </ul>
+        </div>
+        <div>
+          <h4>Scorciatoie</h4>
+          <ul>
+            <li><span class="help__k">⌘Z</span> / <span class="help__k">⇧⌘Z</span> annulla / ripeti</li>
+            <li><span class="help__k">← ↑ → ↓</span> sposta 1px <span class="help__k">Shift = 10px</span></li>
+            <li><span class="help__k">Canc</span> elimina · <span class="help__k">Esc</span> deseleziona</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <main class="workspace">
     <!-- LEFT: slide thumbnails -->

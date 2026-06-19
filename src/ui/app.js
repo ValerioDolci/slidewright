@@ -132,6 +132,10 @@ export class App {
     on('add-image', () => $('#image-input').click());
     on('add-slide', () => this._addSlide());
     on('present', () => this._present());
+    const help = $('#help-pop');
+    on('help', () => { help.hidden = false; });
+    on('help-close', () => { help.hidden = true; });
+    help.addEventListener('click', (e) => { if (e.target === help) help.hidden = true; });
 
     $('#file-input').addEventListener('change', (e) => this._onImportFile(e));
     $('#image-input').addEventListener('change', (e) => this._onImageFile(e));
@@ -147,6 +151,8 @@ export class App {
   // ---------- keyboard ----------
   _wireKeyboard() {
     window.addEventListener('keydown', (e) => {
+      const help = $('#help-pop');
+      if (help && !help.hidden) { if (e.key === 'Escape') help.hidden = true; return; }
       if (this.stage.isEditing()) return; // lascia lavorare il contenteditable
       const meta = e.metaKey || e.ctrlKey;
       if (meta && e.key.toLowerCase() === 'z') {
