@@ -23,6 +23,10 @@
 
   /* canvas area (paper, contrasta col chrome scuro) */
   --stage-bg: #0c0b09;
+  --stage-bg2: #171511;
+  --body-bg: radial-gradient(120% 80% at 100% 0%, #211d16 0%, #14130f 55%, #0c0b08 100%);
+  --grain-opacity: 0.05;
+  --frame-bg: #000;
 
   --radius: 4px;        /* editorial: piccolo */
   --radius-lg: 7px;
@@ -35,4 +39,30 @@
   --shadow-2: 0 18px 50px rgba(0,0,0,0.55);
 
   --tb-h: 52px;
+}
+
+/* ---- Tema light (chrome editor; il canvas mostra il deck con il suo stile) ---- */
+:root[data-theme="light"] {
+  --ink-900: #ffffff;   /* superficie più chiara: input, sfondi profondi */
+  --ink-850: #f5f2ea;   /* pannelli (sidebar/inspector) */
+  --ink-800: #ece7db;   /* topbar */
+  --ink-700: #e6e0d2;   /* bottoni */
+  --ink-600: #d2cab8;
+  --line:    #d6cfbf;
+  --line-soft: #e6e0d3;
+
+  --fg:      #221d14;
+  --fg-dim:  #4c4536;
+  --fg-mut:  #8a8070;
+
+  --amber-bright: #a6500a;  /* più scuro per contrasto su chiaro */
+
+  --stage-bg:  #d7d1c4;     /* contorno canvas grigio caldo */
+  --stage-bg2: #c7c0b1;
+  --body-bg: radial-gradient(120% 80% at 100% 0%, #f3efe5 0%, #e9e4d8 60%, #ded8ca 100%);
+  --grain-opacity: 0.035;
+  --frame-bg: #e9e4d8;
+
+  --shadow-1: 0 1px 0 rgba(255,255,255,0.5), 0 2px 8px rgba(40,34,22,0.10);
+  --shadow-2: 0 18px 50px rgba(40,34,22,0.22);
 }

@@ -6,15 +6,15 @@ body {
   margin: 0;
   font-family: var(--font-sans);
   color: var(--fg);
-  background:
-    radial-gradient(120% 80% at 100% 0%, #211d16 0%, var(--ink-900) 55%, #0c0b08 100%);
+  background: var(--body-bg);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  transition: background .25s ease, color .25s ease;
 }
 /* grana sottile su tutto il chrome */
 body::before {
   content: "";
-  position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.05;
+  position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: var(--grain-opacity);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 button { font-family: inherit; }
@@ -114,7 +114,7 @@ button { font-family: inherit; }
 }
 .thumb__frameWrap {
   position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden;
-  border-radius: 2px; background: #000; box-shadow: var(--shadow-1);
+  border-radius: 2px; background: var(--frame-bg); box-shadow: var(--shadow-1);
 }
 .thumb__frame {
   position: absolute; top: 0; left: 0;
@@ -140,12 +140,12 @@ button { font-family: inherit; }
   position: relative; min-width: 0; min-height: 0;
   display: flex; flex-direction: column;
   background:
-    radial-gradient(140% 120% at 50% 0%, #171511 0%, var(--stage-bg) 70%);
+    radial-gradient(140% 120% at 50% 0%, var(--stage-bg2) 0%, var(--stage-bg) 70%);
 }
 .stage__scene { position: relative; flex: 1; overflow: hidden; }
 .stage__canvas { position: absolute; box-shadow: var(--shadow-2); }
 .stage__frame {
-  width: 100%; height: 100%; border: 0; display: block; background: #000;
+  width: 100%; height: 100%; border: 0; display: block; background: var(--frame-bg);
   border-radius: 2px;
 }
 .overlay {

@@ -37,6 +37,7 @@ export class App {
     this._wireToolbar();
     this._wireKeyboard();
     this._wireDnd();
+    this._initTheme();
 
     store.subscribe((reason) => this._onStore(reason));
     this.renderAll();
@@ -136,6 +137,7 @@ export class App {
     on('help', () => { help.hidden = false; });
     on('help-close', () => { help.hidden = true; });
     help.addEventListener('click', (e) => { if (e.target === help) help.hidden = true; });
+    on('theme', () => this._toggleTheme());
 
     $('#file-input').addEventListener('change', (e) => this._onImportFile(e));
     $('#image-input').addEventListener('change', (e) => this._onImageFile(e));
@@ -275,8 +277,61 @@ export class App {
 
   _addBox() {
     const d = this.stage.doc.createElement('div');
-    Object.assign(d.style, { height: '160px', background: 'rgba(180,83,9,0.18)', border: '1px solid rgba(180,83,9,0.5)', borderRadius: '14px' });
+    const look = this._sampleBoxStyle();
+    if (look) Object.assign(d.style, look);
+    else Object.assign(d.style, { background: 'rgba(180,83,9,0.18)', border: '1px solid rgba(180,83,9,0.5)', borderRadius: '14px' });
+    d.style.height = '160px';
     this._addFree(d, 320, 160);
+  }
+
+  /** Stile "look" da una card/forma già presente nella slide (sfondo, bordo,
+   *  raggio, ombra, blur) → la nuova forma nasce coerente col deck. null se niente. */
+  _sampleBoxStyle() {
+    const slide = this.stage.slideEl;
+    if (!slide) return null;
+    const win = this.stage.doc.defaultView;
+    let cand = slide.querySelector('.card');
+    if (!cand) {
+      cand = [...slide.querySelectorAll('div, section, aside, figure')].find((n) => {
+        if (n === slide || n.id === 'ss-slide') return false;
+        const cs = win.getComputedStyle(n);
+        const hasBg = cs.backgroundColor !== 'rgba(0, 0, 0, 0)' || cs.backgroundImage !== 'none';
+        const hasBorder = parseFloat(cs.borderTopWidth) > 0;
+        const hasRadius = parseFloat(cs.borderTopLeftRadius) > 0;
+        return (hasBg || hasBorder) && hasRadius; // sembra una "card"
+      });
+    }
+    if (!cand) return null;
+    const cs = win.getComputedStyle(cand);
+    const look = {
+      backgroundColor: cs.backgroundColor,
+      borderRadius: cs.borderTopLeftRadius,
+    };
+    if (cs.backgroundImage !== 'none') look.backgroundImage = cs.backgroundImage;
+    if (parseFloat(cs.borderTopWidth) > 0) look.border = `${cs.borderTopWidth} ${cs.borderTopStyle} ${cs.borderTopColor}`;
+    if (cs.boxShadow && cs.boxShadow !== 'none') look.boxShadow = cs.boxShadow;
+    if (cs.backdropFilter && cs.backdropFilter !== 'none') { look.backdropFilter = cs.backdropFilter; look.webkitBackdropFilter = cs.backdropFilter; }
+    return look;
+  }
+
+  // ---------- tema ----------
+  _initTheme() {
+    this._theme = (() => { try { return localStorage.getItem('ss-theme') || 'dark'; } catch (_) { return 'dark'; } })();
+    this._applyTheme();
+  }
+  _toggleTheme() {
+    this._theme = this._theme === 'light' ? 'dark' : 'light';
+    try { localStorage.setItem('ss-theme', this._theme); } catch (_) { /* noop */ }
+    this._applyTheme();
+    this.stage.fitScale();
+    this.selection.refresh();
+  }
+  _applyTheme() {
+    const light = this._theme === 'light';
+    if (light) document.documentElement.setAttribute('data-theme', 'light');
+    else document.documentElement.removeAttribute('data-theme');
+    const btn = document.querySelector('[data-action="theme"]');
+    if (btn) { btn.textContent = light ? '☀' : '☾'; btn.title = light ? 'Passa al tema scuro' : 'Passa al tema chiaro'; }
   }
 
   async _onImageFile(e) {
