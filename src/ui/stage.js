@@ -1,0 +1,200 @@
+/**
+ * Stage: rendering della slide corrente in un <iframe> (isola gli stili del deck
+ * da quelli dell'editor — decisione architetturale). Gestisce:
+ *  - scala canvas logico 1280×720 → viewport;
+ *  - stamping degli eid editor sugli elementi;
+ *  - selezione (click) ed editing testo inline (doppio click → contenteditable);
+ *  - serializzazione della slide corrente verso il modello (getHtml).
+ */
+
+import { CANVAS } from '../core/model.js';
+import { EDITOR_ATTR, uid } from '../util/id.js';
+import { inline, externalize } from '../core/assets.js';
+
+// CSS iniettato SOLO nell'iframe dell'editor (mai esportato).
+const IFRAME_CSS = `
+  html,body{margin:0;width:${CANVAS.w}px;height:${CANVAS.h}px;overflow:hidden}
+  /* la slide in editing è sempre piena e ferma */
+  #ss-slide{position:absolute;inset:0;opacity:1 !important;visibility:visible !important;
+    transform:none !important;transition:none !important;pointer-events:auto !important}
+  [${EDITOR_ATTR}]{cursor:default}
+  [${EDITOR_ATTR}]:not(#ss-slide):hover{outline:1px dashed rgba(180,83,9,.55);outline-offset:1px}
+  .ss-selected{outline:2px solid #b45309 !important;outline-offset:1px}
+  .ss-editing{outline:2px solid #0e7490 !important;cursor:text}
+  .ss-editing *{cursor:text}
+  ::selection{background:rgba(180,83,9,.35)}
+`;
+
+export class Stage {
+  constructor({ sceneEl, canvasEl, frameEl, overlayEl }) {
+    this.scene = sceneEl;
+    this.canvas = canvasEl;
+    this.frame = frameEl;
+    this.overlay = overlayEl;
+    this.scale = 1;
+    this.onSelect = () => {};
+    this.onTextCommit = () => {};
+    this.onBackground = () => {};
+    this.onOverflow = () => {};
+    this._editingEid = null;
+
+    this.canvas.style.width = `${CANVAS.w}px`;
+    this.canvas.style.height = `${CANVAS.h}px`;
+    this.canvas.style.position = 'absolute';
+    this.canvas.style.transformOrigin = 'top left';
+
+    this._ro = new ResizeObserver(() => this.fitScale());
+    this._ro.observe(this.scene);
+    window.addEventListener('resize', () => this.fitScale());
+  }
+
+  get doc() {
+    return this.frame.contentDocument;
+  }
+
+  get slideEl() {
+    return this.doc?.getElementById('ss-slide') || null;
+  }
+
+  /** Scrive la slide nell'iframe e (ri)aggancia gli handler. */
+  render(slide, styleCss) {
+    const doc = this.doc;
+    doc.open();
+    doc.write(
+      `<!DOCTYPE html><html><head><meta charset="UTF-8">` +
+      `<style>${styleCss || ''}</style><style>${IFRAME_CSS}</style></head>` +
+      `<body><section id="ss-slide" class="slide active ${(slide.classes || []).join(' ')}">${inline(slide.html)}</section></body></html>`
+    );
+    doc.close();
+    this._editingEid = null;
+    this._stampEids();
+    this._wireEvents();
+    this.fitScale();
+    this.onOverflow(this._checkOverflow());
+  }
+
+  /** true se il contenuto IN FLUSSO eccede il canvas logico (verrà tagliato).
+   *  Ignora i sottoalberi position:absolute/fixed: la grafica decorativa che
+   *  sborda di proposito (mascotte, spark…) NON è un overflow di contenuto. */
+  _checkOverflow() {
+    const root = this.slideEl;
+    if (!root) return false;
+    const win = this.doc.defaultView;
+    const base = root.getBoundingClientRect();
+    let maxB = 0, maxR = 0;
+    const walk = (node) => {
+      for (const c of node.children) {
+        const cs = win.getComputedStyle(c);
+        if (cs.position === 'absolute' || cs.position === 'fixed' || cs.display === 'none') continue;
+        const r = c.getBoundingClientRect();
+        if (r.width || r.height) {
+          maxB = Math.max(maxB, r.bottom - base.top);
+          maxR = Math.max(maxR, r.right - base.left);
+        }
+        walk(c);
+      }
+    };
+    walk(root);
+    return maxB > CANVAS.h + 2 || maxR > CANVAS.w + 2;
+  }
+
+  /** Assicura un eid su ogni elemento della slide (per selezione stabile). */
+  _stampEids() {
+    const root = this.slideEl;
+    if (!root) return;
+    root.setAttribute(EDITOR_ATTR, root.getAttribute(EDITOR_ATTR) || uid('e'));
+    root.querySelectorAll('*').forEach((node) => {
+      if (!node.getAttribute(EDITOR_ATTR)) node.setAttribute(EDITOR_ATTR, uid('e'));
+    });
+  }
+
+  _wireEvents() {
+    const doc = this.doc;
+    // Click: seleziona l'elemento più vicino con eid; sul body → deseleziona.
+    doc.addEventListener('click', (e) => {
+      const t = e.target.closest(`[${EDITOR_ATTR}]`);
+      // blocca link/navigazione interni al deck
+      const a = e.target.closest('a');
+      if (a) e.preventDefault();
+      if (!t || t.id === 'ss-slide') {
+        if (this._editingEid) this._endEditing();
+        this.onBackground();
+        return;
+      }
+      if (this._editingEid && this._editingEid !== t.getAttribute(EDITOR_ATTR)) this._endEditing();
+      this.onSelect(t.getAttribute(EDITOR_ATTR));
+    });
+
+    // Doppio click: editing testo inline.
+    doc.addEventListener('dblclick', (e) => {
+      const t = e.target.closest(`[${EDITOR_ATTR}]`);
+      if (!t || t.id === 'ss-slide') return;
+      this._beginEditing(t);
+    });
+  }
+
+  _beginEditing(elm) {
+    if (this._editingEid) this._endEditing();
+    this._editingEid = elm.getAttribute(EDITOR_ATTR);
+    elm.setAttribute('contenteditable', 'true');
+    elm.classList.add('ss-editing');
+    elm.focus();
+    // incolla come testo semplice (niente markup/stili esterni nel deck)
+    const onPaste = (ev) => {
+      ev.preventDefault();
+      const text = (ev.clipboardData || this.frame.contentWindow.clipboardData)?.getData('text/plain') || '';
+      this.doc.execCommand('insertText', false, text);
+    };
+    elm.addEventListener('paste', onPaste);
+    const onBlur = () => { elm.removeEventListener('paste', onPaste); this._endEditing(); };
+    elm.addEventListener('blur', onBlur, { once: true });
+  }
+
+  _endEditing() {
+    const eid = this._editingEid;
+    this._editingEid = null;
+    if (!eid) return;
+    const elm = this.getElement(eid);
+    if (elm) {
+      elm.removeAttribute('contenteditable');
+      elm.classList.remove('ss-editing');
+    }
+    this.onTextCommit();
+  }
+
+  isEditing() {
+    return !!this._editingEid;
+  }
+
+  getElement(eid) {
+    if (!eid || !this.doc) return null;
+    return this.doc.querySelector(`[${EDITOR_ATTR}="${CSS.escape(eid)}"]`);
+  }
+
+  /** innerHTML della slide corrente (per il commit nel modello).
+   *  externalize: le immagini base64 tornano placeholder (history leggera). */
+  getHtml() {
+    return this.slideEl ? externalize(this.slideEl.innerHTML) : '';
+  }
+
+  /** Rettangolo logico (1280×720) di un elemento, per disegnare le maniglie. */
+  rectOf(eid) {
+    const elm = this.getElement(eid);
+    if (!elm) return null;
+    const r = elm.getBoundingClientRect(); // iframe non scalato → coord. logiche
+    return { x: r.left, y: r.top, w: r.width, h: r.height };
+  }
+
+  fitScale() {
+    const pad = 28;
+    const sw = this.scene.clientWidth - pad * 2;
+    const sh = this.scene.clientHeight - pad * 2;
+    if (sw <= 0 || sh <= 0) return;
+    const s = Math.min(sw / CANVAS.w, sh / CANVAS.h);
+    this.scale = s;
+    this.canvas.style.transform = `scale(${s})`;
+    this.canvas.style.left = `${Math.max(pad, (this.scene.clientWidth - CANVAS.w * s) / 2)}px`;
+    this.canvas.style.top = `${Math.max(pad, (this.scene.clientHeight - CANVAS.h * s) / 2)}px`;
+    this.onScale?.(s);
+  }
+}

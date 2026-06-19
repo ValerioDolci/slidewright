@@ -1,0 +1,20 @@
+{
+  "name": "slide-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Editor visuale locale per deck di slide HTML — riordino, editing testo, editing grafico, export HTML+PDF.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:single": "SINGLEFILE=1 vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "sortablejs": "^1.15.3"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "vite-plugin-singlefile": "^2.0.0"
+  }
+}

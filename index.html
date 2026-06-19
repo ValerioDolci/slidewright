@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Slide Studio</title>
+  <link rel="stylesheet" href="/src/styles/tokens.css" />
+  <link rel="stylesheet" href="/src/styles/editor.css" />
+</head>
+<body>
+  <!-- Drop overlay (import deck) -->
+  <div id="drop-overlay" class="drop-overlay" hidden>
+    <div class="drop-overlay__card">
+      <div class="drop-overlay__icon">⤓</div>
+      <p class="drop-overlay__title">Rilascia qui il tuo <code>deck.html</code></p>
+      <p class="drop-overlay__sub">Verranno importati stile e slide</p>
+    </div>
+  </div>
+
+  <header class="topbar" data-reveal>
+    <div class="topbar__brand">
+      <span class="topbar__mark">◳</span>
+      <span class="topbar__name">Slide&nbsp;Studio</span>
+    </div>
+
+    <div class="topbar__group" role="group" aria-label="File">
+      <button class="btn" data-action="import" title="Importa deck HTML">Importa</button>
+      <button class="btn" data-action="new-deck" title="Nuovo deck vuoto">Nuovo</button>
+      <span class="topbar__sep"></span>
+      <button class="btn" data-action="export-html" title="Esporta HTML pulito">Esporta HTML</button>
+      <button class="btn" data-action="export-pdf" title="Esporta PDF (stesso formato slide)">Esporta PDF</button>
+    </div>
+
+    <div class="topbar__group" role="group" aria-label="Modifica">
+      <button class="btn btn--icon" data-action="undo" title="Annulla (⌘Z)" disabled>↶</button>
+      <button class="btn btn--icon" data-action="redo" title="Ripeti (⇧⌘Z)" disabled>↷</button>
+      <span class="topbar__sep"></span>
+      <button class="btn btn--icon" data-action="add-text" title="Aggiungi testo">T</button>
+      <button class="btn btn--icon" data-action="add-box" title="Aggiungi rettangolo">▭</button>
+      <button class="btn btn--icon" data-action="add-image" title="Aggiungi immagine">▣</button>
+    </div>
+
+    <div class="topbar__spacer"></div>
+
+    <div class="topbar__group">
+      <button class="btn btn--ghost" data-action="present" title="Presenta a schermo intero">Presenta ▸</button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <!-- LEFT: slide thumbnails -->
+    <aside class="sidebar" data-reveal>
+      <div class="panel__head">
+        <span class="panel__title">Slide</span>
+        <button class="btn btn--icon btn--sm" data-action="add-slide" title="Nuova slide">+</button>
+      </div>
+      <ol class="thumbs" id="thumbs"></ol>
+    </aside>
+
+    <!-- CENTER: stage -->
+    <section class="stage" id="stage" data-reveal>
+      <div class="stage__scene" id="stage-scene">
+        <div class="stage__canvas" id="stage-canvas">
+          <iframe id="slide-frame" class="stage__frame" title="Slide" referrerpolicy="no-referrer"></iframe>
+          <div class="overlay" id="overlay"></div>
+        </div>
+      </div>
+      <div class="stage__bar">
+        <span class="stage__zoom" id="zoom-label">—</span>
+        <span class="stage__warn" id="stage-warn" hidden>⚠ contenuto oltre i bordi (verrà tagliato in stampa)</span>
+        <span class="stage__hint" id="stage-hint">Importa un deck o crea un nuovo deck per iniziare</span>
+      </div>
+    </section>
+
+    <!-- RIGHT: inspector -->
+    <aside class="inspector" id="inspector" data-reveal>
+      <div class="panel__head">
+        <span class="panel__title" id="inspector-title">Proprietà</span>
+      </div>
+      <div class="inspector__body" id="inspector-body">
+        <p class="inspector__empty">Nessun elemento selezionato.<br />Clicca un elemento sulla slide.</p>
+      </div>
+    </aside>
+  </main>
+
+  <input type="file" id="file-input" accept=".html,text/html" hidden />
+  <input type="file" id="image-input" accept="image/*" hidden />
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

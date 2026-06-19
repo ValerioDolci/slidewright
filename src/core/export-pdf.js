@@ -1,0 +1,129 @@
+/**
+ * Export PDF nello STESSO formato delle slide (decisione: locale, zero dipendenze).
+ * Niente Puppeteer/weasyprint: si usa il motore di stampa del browser.
+ *
+ * Ogni slide diventa una pagina 16:9 esatta:
+ *   1280px @96dpi = 13.333in = 338.667mm  ·  720px = 7.5in = 190.5mm
+ * via `@page { size: 338.667mm 190.5mm; margin:0 }` + un blocco 1280×720 per slide.
+ * L'utente sceglie "Salva come PDF" → pagine identiche alle slide.
+ *
+ * Sfondo: i deck mettono spesso il fondale su `body` (e le slide hanno layer
+ * semi-trasparenti sopra). Impilando le slide in un unico documento, ogni pagina
+ * cadrebbe su una fetta diversa del gradiente del body → fondale incoerente
+ * (si scurisce di pagina in pagina). Per questo replichiamo lo sfondo del body
+ * SU OGNI pagina (computato da un render off-screen) e azzeriamo quello del body.
+ *
+ * Suggerire all'utente di attivare "Grafica di sfondo" nel dialogo di stampa.
+ */
+
+import { cleanSlideHtml } from './export-html.js';
+import { CANVAS } from './model.js';
+
+const PRINT_CSS_BASE = `
+@page { size: 338.667mm 190.5mm; margin: 0; }
+html,body{margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.ss-page{position:relative;width:${CANVAS.w}px;height:${CANVAS.h}px;overflow:hidden;
+  page-break-after:always;break-after:page;}
+.ss-page:last-child{page-break-after:auto;break-after:auto;}
+/* Forza ogni slide visibile e ferma nella sua pagina (override della logica .active) */
+.ss-page > .slide{position:absolute !important;inset:0 !important;
+  opacity:1 !important;visibility:visible !important;transform:none !important;
+  transition:none !important;pointer-events:auto !important;}`;
+
+export function buildPrintHtml(deck, { pageBackground = '' } = {}) {
+  const pages = deck.slides
+    .map((s) => {
+      const cls = ['slide', ...(s.classes || [])].filter(Boolean).join(' ');
+      return `<div class="ss-page"><section class="${cls}">${cleanSlideHtml(s.html)}</section></div>`;
+    })
+    .join('\n');
+
+  // Quando abbiamo lo sfondo del body: lo applichiamo a ogni pagina e azzeriamo
+  // quello del body (altrimenti si "stira" su tutto il documento e scurisce).
+  const bgCss = pageBackground
+    ? `html,body{background:none !important;}\n.ss-page{${pageBackground}}`
+    : '';
+
+  return `<!DOCTYPE html><html lang="${deck.meta?.lang || 'it'}"><head>
+<meta charset="UTF-8" /><title>${(deck.meta?.title || 'Deck')} — PDF</title>
+<style>${deck.styleCss || ''}</style>
+<style>${PRINT_CSS_BASE}\n${bgCss}</style>
+</head><body>${pages}</body></html>`;
+}
+
+/**
+ * Computa, da un render off-screen del solo stile del deck (alla dimensione di
+ * UNA pagina), le dichiarazioni di sfondo del body — così possono essere
+ * replicate identiche su ogni pagina. Stringa vuota se lo sfondo è trasparente.
+ */
+export function computeBodyBackground(styleCss) {
+  return new Promise((resolve) => {
+    const f = document.createElement('iframe');
+    Object.assign(f.style, {
+      position: 'fixed', left: '-99999px', top: '0',
+      width: `${CANVAS.w}px`, height: `${CANVAS.h}px`, border: '0', visibility: 'hidden',
+    });
+    document.body.append(f);
+    const d = f.contentDocument;
+    d.open();
+    d.write(`<!DOCTYPE html><html><head><style>${styleCss || ''}</style></head><body></body></html>`);
+    d.close();
+
+    const finish = () => {
+      let decl = '';
+      try {
+        const win = f.contentWindow;
+        const pick = (node) => {
+          const cs = win.getComputedStyle(node);
+          const transparent = cs.backgroundImage === 'none' &&
+            (cs.backgroundColor === 'rgba(0, 0, 0, 0)' || cs.backgroundColor === 'transparent');
+          if (transparent) return '';
+          return `background-color:${cs.backgroundColor};background-image:${cs.backgroundImage};` +
+            `background-position:${cs.backgroundPosition};background-size:${cs.backgroundSize};` +
+            `background-repeat:${cs.backgroundRepeat};`;
+        };
+        decl = pick(d.body) || pick(d.documentElement);
+      } catch (_) { decl = ''; }
+      f.remove();
+      resolve(decl);
+    };
+
+    if (d.readyState === 'complete') setTimeout(finish, 30);
+    else f.addEventListener('load', () => setTimeout(finish, 30), { once: true });
+  });
+}
+
+/**
+ * Apre un iframe nascosto col documento di stampa e lancia il dialogo.
+ * Ritorna una Promise che si risolve dopo l'avvio della stampa.
+ */
+export async function exportPdf(deck) {
+  const pageBackground = await computeBodyBackground(deck.styleCss);
+  const html = buildPrintHtml(deck, { pageBackground });
+
+  return new Promise((resolve) => {
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    Object.assign(iframe.style, {
+      position: 'fixed', right: '0', bottom: '0',
+      width: '0', height: '0', border: '0', visibility: 'hidden',
+    });
+    document.body.append(iframe);
+
+    const doc = iframe.contentDocument;
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    const fire = () => {
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } finally {
+        setTimeout(() => { iframe.remove(); resolve(); }, 800);
+      }
+    };
+    if (iframe.contentWindow.document.readyState === 'complete') setTimeout(fire, 150);
+    else iframe.addEventListener('load', () => setTimeout(fire, 150), { once: true });
+  });
+}
