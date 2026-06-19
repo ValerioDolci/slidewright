@@ -16,6 +16,8 @@ import { Stage } from './stage.js';
 import { Sidebar } from './sidebar.js';
 import { Inspector } from './inspector.js';
 import { SelectionLayer } from './selection.js';
+import { ChatPanel } from './chat.js';
+import { runAgentTurn } from '../core/agent.js';
 import { fsSupported, openDeckFile, pickSaveFile, writeHandle, ensureWritable } from '../core/persistence.js';
 import { $, downloadText, readFileText, readFileDataURL } from '../util/dom.js';
 import { EDITOR_ATTR, uid } from '../util/id.js';
@@ -37,6 +39,9 @@ export class App {
     this.sidebar = new Sidebar($('#thumbs'));
     this.inspector = new Inspector($('#inspector-title'), $('#inspector-body'));
     this.selection = new SelectionLayer(this.stage);
+    this.chat = new ChatPanel();
+    this.chat.onSend = (text) => this._runAgent(text);
+    this._agentHistory = [];
 
     this._wireStage();
     this._wireSidebar();
@@ -154,6 +159,7 @@ export class App {
     on('help-close', () => { help.hidden = true; });
     help.addEventListener('click', (e) => { if (e.target === help) help.hidden = true; });
     on('theme', () => this._toggleTheme());
+    on('chat', () => this.chat.toggle());
 
     $('#file-input').addEventListener('change', (e) => this._onImportFile(e));
     $('#image-input').addEventListener('change', (e) => this._onImageFile(e));
@@ -334,6 +340,95 @@ export class App {
     if (cs.boxShadow && cs.boxShadow !== 'none') look.boxShadow = cs.boxShadow;
     if (cs.backdropFilter && cs.backdropFilter !== 'none') { look.backdropFilter = cs.backdropFilter; look.webkitBackdropFilter = cs.backdropFilter; }
     return look;
+  }
+
+  // ---------- agente (chat) ----------
+  async _runAgent(text) {
+    const conn = this.chat.getActiveConnection();
+    if (!conn) { this.chat._openSettings(); return; }
+    this.commitStage(null); // l'agente deve vedere gli edit correnti
+    this.chat.setBusy(true);
+    try {
+      const reply = await runAgentTurn({
+        connection: conn,
+        ctx: this._agentContext(),
+        history: this._agentHistory,
+        userText: text,
+        exec: (name, args) => this._agentExec(name, args),
+        onStep: (n, a) => this.chat.addStep(n, a),
+      });
+      this.chat.addAssistant(reply);
+    } catch (e) {
+      this.chat.addError(e.message);
+    } finally {
+      this.chat.setBusy(false);
+    }
+  }
+
+  _agentContext() {
+    const d = store.deck;
+    return {
+      mode: d.mode || 'deck',
+      canvas: d.canvas,
+      title: d.meta.title,
+      currentIndex: store.currentIndex,
+      slideTitles: d.slides.map((s, i) => `${i}: ${this._slideTitle(s)}`),
+      styleCss: d.styleCss,
+      currentSlideHtml: inline(d.slides[store.currentIndex]?.html || ''),
+    };
+  }
+
+  _slideTitle(s) {
+    const m = (s.html || '').match(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/i);
+    const t = m ? m[1].replace(/<[^>]+>/g, '').trim() : '';
+    return t || '(senza titolo)';
+  }
+
+  _stripScripts(html) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = html || '';
+    tpl.content.querySelectorAll('script').forEach((n) => n.remove());
+    return tpl.innerHTML;
+  }
+
+  /** Esegue un tool dell'agente via store.commit (→ undo/redo + autosave). */
+  _agentExec(name, args) {
+    const d = store.deck;
+    const clean = (html) => externalize(this._stripScripts(html || ''));
+    switch (name) {
+      case 'get_slide':
+        return { html: inline(d.slides[args.index]?.html ?? '') || null };
+      case 'update_slide':
+        if (!d.slides[args.index]) return { error: 'indice non valido' };
+        store.commit('AI · modifica slide', (x) => { x.slides[args.index].html = clean(args.html); });
+        this._afterAgentEdit(args.index); return { ok: true };
+      case 'add_slide': {
+        const after = Number.isInteger(args.afterIndex) ? args.afterIndex : d.slides.length - 1;
+        store.commit('AI · nuova slide', (x) => { x.slides.splice(after + 1, 0, createSlide(clean(args.html))); });
+        this._afterAgentEdit(after + 1); return { ok: true, total: store.deck.slides.length };
+      }
+      case 'delete_slide':
+        if (d.slides.length <= 1) return { error: 'non puoi eliminare l\'ultima slide' };
+        store.commit('AI · elimina slide', (x) => { x.slides.splice(args.index, 1); });
+        this._afterAgentEdit(Math.min(args.index, store.deck.slides.length - 1)); return { ok: true };
+      case 'reorder_slides':
+        store.commit('AI · riordina', (x) => { const [m] = x.slides.splice(args.from, 1); x.slides.splice(args.to, 0, m); });
+        this._afterAgentEdit(args.to); return { ok: true };
+      case 'set_style_css':
+        store.commit('AI · stile globale', (x) => { x.styleCss = String(args.css || ''); });
+        this._afterAgentEdit(); return { ok: true };
+      case 'set_title':
+        store.commit('AI · titolo', (x) => { x.meta.title = String(args.title || x.meta.title); });
+        return { ok: true };
+      default:
+        return { error: 'tool sconosciuto: ' + name };
+    }
+  }
+
+  _afterAgentEdit(index) {
+    this.sidebar.render(store.deck, store.currentIndex);
+    if (Number.isInteger(index)) this.gotoSlide(index, true);
+    else this.renderStageOnly();
   }
 
   // ---------- tema ----------
