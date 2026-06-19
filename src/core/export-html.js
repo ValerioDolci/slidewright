@@ -62,6 +62,7 @@ const RUNTIME_JS = `(function(){
 })();`;
 
 export function buildDeckHtml(deck) {
+  if ((deck.mode || 'deck') === 'doc') return buildDocHtml(deck);
   const lang = deck.meta?.lang || 'it';
   const title = deck.meta?.title || 'Deck';
   const sections = deck.slides
@@ -94,6 +95,28 @@ ${sections}
     <button data-n title="Successiva">›</button>
   </div>
   <script>${RUNTIME_JS}</script>
+</body>
+</html>
+`;
+}
+
+/** Export in modalità documento: HTML normale (no wrapper deck/nav). */
+function buildDocHtml(deck) {
+  const lang = deck.meta?.lang || 'it';
+  const title = deck.meta?.title || 'Documento';
+  const content = cleanSlideHtml(deck.slides[0]?.html || '');
+  return `<!DOCTYPE html>
+<html lang="${escapeAttr(lang)}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+${indent(deck.styleCss || '', 4)}
+  </style>
+</head>
+<body>
+${indent(content, 2)}
 </body>
 </html>
 `;

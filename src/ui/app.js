@@ -234,9 +234,14 @@ export class App {
   }
 
   // ---------- rendering ----------
+  _applyMode() {
+    document.body.classList.toggle('is-doc', (store.deck.mode || 'deck') === 'doc');
+  }
+
   renderAll() {
     this.selection.onChange = () => { this.commitStage('Sposta/ridimensiona'); this.selection.refresh(); };
-    this.stage.render(store.currentSlide, store.deck.styleCss);
+    this._applyMode();
+    this.stage.render(store.currentSlide, store.deck.styleCss, store.deck.mode);
     this.sidebar.render(store.deck, store.currentIndex);
     this.inspector.clear();
     this.selection.hide();
@@ -245,7 +250,8 @@ export class App {
   }
 
   renderStageOnly() {
-    this.stage.render(store.currentSlide, store.deck.styleCss);
+    this._applyMode();
+    this.stage.render(store.currentSlide, store.deck.styleCss, store.deck.mode);
     this.inspector.clear();
     this.selection.hide();
     this._updateZoom();

@@ -31,6 +31,7 @@ html,body{margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust
   transition:none !important;pointer-events:auto !important;}`;
 
 export function buildPrintHtml(deck, { pageBackground = '' } = {}) {
+  if ((deck.mode || 'deck') === 'doc') return buildDocPrintHtml(deck);
   const pages = deck.slides
     .map((s) => {
       const cls = ['slide', ...(s.classes || [])].filter(Boolean).join(' ');
@@ -49,6 +50,16 @@ export function buildPrintHtml(deck, { pageBackground = '' } = {}) {
 <style>${deck.styleCss || ''}</style>
 <style>${PRINT_CSS_BASE}\n${bgCss}</style>
 </head><body>${pages}</body></html>`;
+}
+
+/** Stampa in modalità documento: pagine A4 con impaginazione naturale del browser. */
+function buildDocPrintHtml(deck) {
+  const content = cleanSlideHtml(deck.slides[0]?.html || '');
+  return `<!DOCTYPE html><html lang="${deck.meta?.lang || 'it'}"><head>
+<meta charset="UTF-8" /><title>${(deck.meta?.title || 'Documento')} — PDF</title>
+<style>${deck.styleCss || ''}</style>
+<style>@page{margin:16mm}html,body{margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact;}</style>
+</head><body>${content}</body></html>`;
 }
 
 /**
@@ -98,7 +109,8 @@ export function computeBodyBackground(styleCss) {
  * Ritorna una Promise che si risolve dopo l'avvio della stampa.
  */
 export async function exportPdf(deck) {
-  const pageBackground = await computeBodyBackground(deck.styleCss);
+  const isDoc = (deck.mode || 'deck') === 'doc';
+  const pageBackground = isDoc ? '' : await computeBodyBackground(deck.styleCss);
   const html = buildPrintHtml(deck, { pageBackground });
 
   return new Promise((resolve) => {

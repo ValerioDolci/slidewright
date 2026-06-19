@@ -25,6 +25,17 @@ const IFRAME_CSS = `
   ::selection{background:rgba(180,83,9,.35)}
 `;
 
+// CSS iframe per la modalità DOCUMENTO (altezza libera, niente forzature 16:9).
+const DOC_IFRAME_CSS = `
+  html,body{margin:0}
+  #ss-slide{min-height:100%}
+  [${EDITOR_ATTR}]:not(#ss-slide):hover{outline:1px dashed rgba(180,83,9,.55);outline-offset:1px}
+  .ss-selected{outline:2px solid #b45309 !important;outline-offset:1px}
+  .ss-editing{outline:2px solid #0e7490 !important;cursor:text}
+  .ss-editing *{cursor:text}
+  ::selection{background:rgba(180,83,9,.35)}
+`;
+
 export class Stage {
   constructor({ sceneEl, canvasEl, frameEl, overlayEl }) {
     this.scene = sceneEl;
@@ -57,20 +68,29 @@ export class Stage {
   }
 
   /** Scrive la slide nell'iframe e (ri)aggancia gli handler. */
-  render(slide, styleCss) {
+  render(slide, styleCss, mode = 'deck') {
+    this.mode = mode;
     const doc = this.doc;
     doc.open();
-    doc.write(
-      `<!DOCTYPE html><html><head><meta charset="UTF-8">` +
-      `<style>${styleCss || ''}</style><style>${IFRAME_CSS}</style></head>` +
-      `<body><section id="ss-slide" class="slide active ${(slide.classes || []).join(' ')}">${inline(slide.html)}</section></body></html>`
-    );
+    if (mode === 'doc') {
+      doc.write(
+        `<!DOCTYPE html><html><head><meta charset="UTF-8">` +
+        `<style>${styleCss || ''}</style><style>${DOC_IFRAME_CSS}</style></head>` +
+        `<body><div id="ss-slide" class="ss-doc">${inline(slide.html)}</div></body></html>`
+      );
+    } else {
+      doc.write(
+        `<!DOCTYPE html><html><head><meta charset="UTF-8">` +
+        `<style>${styleCss || ''}</style><style>${IFRAME_CSS}</style></head>` +
+        `<body><section id="ss-slide" class="slide active ${(slide.classes || []).join(' ')}">${inline(slide.html)}</section></body></html>`
+      );
+    }
     doc.close();
     this._editingEid = null;
     this._stampEids();
     this._wireEvents();
     this.fitScale();
-    this.onOverflow(this._checkOverflow());
+    this.onOverflow(mode === 'deck' ? this._checkOverflow() : false);
   }
 
   /** true se il contenuto IN FLUSSO eccede il canvas logico (verrà tagliato).
@@ -186,15 +206,42 @@ export class Stage {
   }
 
   fitScale() {
+    if (this.mode === 'doc') return this._fitDoc();
     const pad = 28;
     const sw = this.scene.clientWidth - pad * 2;
     const sh = this.scene.clientHeight - pad * 2;
     if (sw <= 0 || sh <= 0) return;
+    this.scene.style.overflow = 'hidden';
     const s = Math.min(sw / CANVAS.w, sh / CANVAS.h);
     this.scale = s;
+    this.canvas.style.position = 'absolute';
+    this.canvas.style.width = `${CANVAS.w}px`;
+    this.canvas.style.height = `${CANVAS.h}px`;
     this.canvas.style.transform = `scale(${s})`;
     this.canvas.style.left = `${Math.max(pad, (this.scene.clientWidth - CANVAS.w * s) / 2)}px`;
     this.canvas.style.top = `${Math.max(pad, (this.scene.clientHeight - CANVAS.h * s) / 2)}px`;
     this.onScale?.(s);
+  }
+
+  /** Modalità documento: larghezza piena (max 1100px), altezza = contenuto,
+   *  scala 1 (niente transform), la scena scrolla in verticale. */
+  _fitDoc() {
+    const pad = 24;
+    const avail = this.scene.clientWidth - pad * 2;
+    if (avail <= 0) return;
+    const w = Math.min(avail, 1100);
+    this.scale = 1;
+    this.scene.style.overflow = 'auto';
+    this.canvas.style.position = 'relative';
+    this.canvas.style.transform = 'none';
+    this.canvas.style.left = '0';
+    this.canvas.style.top = '0';
+    this.canvas.style.margin = `${pad}px auto`;
+    this.canvas.style.width = `${w}px`;
+    // l'iframe (width 100%) ha già riflusso il contenuto a larghezza w → misura
+    const body = this.doc?.body;
+    const h = body ? Math.max(body.scrollHeight, 200) : 600;
+    this.canvas.style.height = `${h}px`;
+    this.onScale?.(1);
   }
 }

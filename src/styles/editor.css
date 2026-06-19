@@ -80,6 +80,10 @@ button { font-family: inherit; }
   min-height: 0;
 }
 
+/* modalità documento: un solo "foglio", niente sidebar slide */
+.is-doc .sidebar { display: none; }
+.is-doc .workspace { grid-template-columns: 1fr 280px; }
+
 .panel__head {
   display: flex; align-items: center; justify-content: space-between;
   height: 38px; padding: 0 12px;

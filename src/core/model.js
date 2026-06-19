@@ -83,6 +83,7 @@ export function titleSlideHtml(title = 'Titolo della presentazione', subtitle = 
 export function createDeck({ title = 'Nuovo deck', lang = 'it', styleCss = DEFAULT_STYLE_CSS } = {}) {
   return {
     meta: { title, lang },
+    mode: 'deck',            // 'deck' (slide 16:9) | 'doc' (documento HTML a pagina libera)
     canvas: { ...CANVAS },
     styleCss,
     slides: [

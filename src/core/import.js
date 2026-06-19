@@ -45,9 +45,14 @@ export function parseDeck(htmlString) {
     warnings.push('Font esterni (Google Fonts) rilevati e rimossi: il deck userà i font di sistema.');
   }
 
-  // Slide: <section class="slide">. Fallback progressivi se assenti.
+  // Deck = elementi con classe `.slide` (marcatore canonico). Se manca, un
+  // eventuale wrapper `.deck` con figli <section> conta come deck. Tutto il resto
+  // (incl. documenti che usano <section> semantici) → modalità documento.
   let sections = Array.from(doc.querySelectorAll('section.slide, .slide'));
-  if (sections.length === 0) sections = Array.from(doc.querySelectorAll('.deck > section, section'));
+  if (sections.length === 0) {
+    const deckWrap = doc.querySelector('.deck');
+    if (deckWrap) sections = Array.from(deckWrap.querySelectorAll(':scope > section'));
+  }
 
   // sicurezza: niente <script> nelle slide (no esecuzione codice nell'editor/export).
   // + externalize: le immagini base64 vanno nel pool asset (history leggera).
@@ -57,16 +62,20 @@ export function parseDeck(htmlString) {
   };
 
   let slides;
+  let mode;
   if (sections.length > 0) {
+    mode = 'deck';
     slides = sections.map((sec) => ({
       id: uid('sl'),
       classes: Array.from(sec.classList).filter((c) => c !== 'slide' && c !== 'active'),
       html: prep(sec),
     }));
   } else {
-    warnings.push('Nessuna <section class="slide"> trovata: importata come singola slide.');
+    // HTML generico (non un deck): modalità documento, una pagina col body intero.
+    mode = 'doc';
+    warnings.push('HTML non-slide: aperto in modalità documento (pagina libera, scrollabile).');
     slides = [{ id: uid('sl'), classes: [], html: doc.body ? prep(doc.body) : '' }];
   }
 
-  return { meta, canvas: { ...CANVAS }, styleCss, slides, _warnings: warnings };
+  return { meta, mode, canvas: { ...CANVAS }, styleCss, slides, _warnings: warnings };
 }

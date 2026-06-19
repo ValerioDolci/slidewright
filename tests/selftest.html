@@ -70,6 +70,15 @@
       A(!clean.includes('data-ss-eid') && !clean.includes('contenteditable') && clean.includes('card'),
         'export: cleanSlideHtml strip attributi editor, mantiene .card');
 
+      // ---- modalità documento (HTML non-slide) ----
+      const docDeck = parseDeck('<!DOCTYPE html><html><head><title>Doc</title><style>body{color:red}</style></head><body><section><h1>Titolo</h1><p>testo</p></section><section><p>altro</p></section></body></html>');
+      A(docDeck.mode === 'doc', `doc: <section> semantici non sono un deck → mode=${docDeck.mode}`);
+      A(docDeck.slides.length === 1, `doc: una sola pagina (${docDeck.slides.length})`);
+      const docHtml = buildDeckHtml(docDeck);
+      A(!docHtml.includes('ss-deck') && docHtml.includes('<body>'), 'doc: export = documento HTML normale (no wrapper deck)');
+      const realDeck = parseDeck('<html><body><div class="deck"><section class="slide"><h1>A</h1></section></div></body></html>');
+      A(realDeck.mode === 'deck', 'doc: un vero deck (.slide) resta mode=deck');
+
       // ---- model ----
       const d = createDeck();
       A(d.slides.length >= 1 && d.canvas.w === 1280, 'model: createDeck valido');
