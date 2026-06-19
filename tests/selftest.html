@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <title>Slide Studio — self test</title>
+  <style>
+    body { font-family: ui-monospace, Menlo, monospace; background: #14130f; color: #efe9dd; margin: 0; padding: 16px; }
+    #result { white-space: pre-wrap; font-size: 13px; line-height: 1.55; }
+    .ok { color: #6fd18a; } .bad { color: #ff8a7a; }
+    h1 { font-size: 15px; color: #e2861f; }
+  </style>
+</head>
+<body>
+  <h1>Slide Studio — self test (regressione moduli core)</h1>
+  <div id="result">running…</div>
+
+  <script type="module">
+    import { parseDeck } from '/src/core/import.js';
+    import { buildDeckHtml, cleanSlideHtml } from '/src/core/export-html.js';
+    import { externalize, inline } from '/src/core/assets.js';
+    import { createDeck, cloneDeck } from '/src/core/model.js';
+
+    const log = []; let pass = 0, fail = 0;
+    const A = (cond, msg) => {
+      if (cond) { pass++; log.push(`<span class="ok">PASS</span> ${msg}`); }
+      else { fail++; log.push(`<span class="bad">FAIL</span> ${msg}`); }
+    };
+
+    const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const SAMPLE = `<!DOCTYPE html><html lang="it"><head><title>Mini</title>
+<style>@import url(https://fonts.googleapis.com/css?family=Inter);
+:root{--a:#b45309}.slide{position:absolute;inset:0}.card{background:rgba(255,255,255,.08);border-radius:16px}</style></head>
+<body><div class="deck">
+<section class="slide active"><h1>Uno</h1><div class="card">c</div><img src="${PNG}"></section>
+<section class="slide"><h2>Due</h2><scr` + `ipt>window.__HACK=1</scr` + `ipt></section>
+</div></body></html>`;
+
+    try {
+      // ---- import ----
+      const deck = parseDeck(SAMPLE);
+      A(deck.slides.length === 2, `import: 2 slide (${deck.slides.length})`);
+      A(deck.meta.title === 'Mini', `import: title "${deck.meta.title}"`);
+      A(deck.canvas.w === 1280 && deck.canvas.h === 720, 'import: canvas 1280x720');
+
+      // ---- google fonts strip ----
+      A(!/googleapis/.test(deck.styleCss), 'fonts: @import googleapis rimosso');
+      A(deck.styleCss.includes('--a:#b45309'), 'fonts: resto del CSS preservato');
+      A(deck._warnings.some((w) => /font/i.test(w)), 'fonts: warning emesso');
+
+      // ---- script strip ----
+      A(!/<script/i.test(deck.slides[1].html) && !window.__HACK, 'sicurezza: <script> rimosso, non eseguito');
+
+      // ---- assets pool ----
+      A(deck.slides[0].html.includes('data-ss-asset') && !deck.slides[0].html.includes('base64'),
+        'assets: import → placeholder leggero (no base64 nel modello)');
+      const ex = externalize(`<img src="${PNG}">`);
+      const id1 = (ex.match(/data-ss-asset="(a\d+)"/) || [])[1];
+      A(!!id1 && !ex.includes('base64'), 'assets: externalize → placeholder');
+      A(externalize(inline(ex)).includes(id1), 'assets: re-externalize riusa lo stesso id (no leak)');
+      const fin = inline(ex, { forExport: true });
+      A(fin.includes('base64') && !fin.includes('data-ss-asset'), 'assets: inline forExport ripristina base64');
+
+      // ---- export ----
+      const html = buildDeckHtml(deck);
+      A((html.match(/<section class="slide/g) || []).length === 2, 'export: 2 sezioni');
+      A(html.includes('class="deck ss-deck"'), 'export: wrapper deck ss-deck');
+      A(html.includes('base64'), 'export: immagini reinserite (base64)');
+      A(!html.includes('data-ss-asset') && !html.includes('data-ss-eid'), 'export: nessun attributo interno');
+      const clean = cleanSlideHtml('<div data-ss-eid="x" contenteditable="true" class="ss-selected card">c</div>');
+      A(!clean.includes('data-ss-eid') && !clean.includes('contenteditable') && clean.includes('card'),
+        'export: cleanSlideHtml strip attributi editor, mantiene .card');
+
+      // ---- model ----
+      const d = createDeck();
+      A(d.slides.length >= 1 && d.canvas.w === 1280, 'model: createDeck valido');
+      const c = cloneDeck(d); c.slides[0].html = 'X';
+      A(d.slides[0].html !== 'X', 'model: cloneDeck indipendente (deep copy)');
+    } catch (e) {
+      fail++; log.push(`<span class="bad">EXCEPTION</span> ${e.message}\n${e.stack}`);
+    }
+
+    document.getElementById('result').innerHTML =
+      `RISULTATO: ${pass} pass, ${fail} fail\n\n` + log.join('\n');
+    document.title = fail === 0 ? `TESTS OK ${pass}/${pass}` : `TESTS FAIL ${fail}`;
+  </script>
+</body>
+</html>

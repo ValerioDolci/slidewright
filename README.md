@@ -27,9 +27,18 @@ Apri `dist/index.html` con un doppio click: l'editor gira da `file://`.
 | **L1 — Riordino** | Miniature in sidebar, drag&drop (SortableJS), duplica / elimina / nuova |
 | **L2 — Testo** | Doppio click su un elemento → `contenteditable` inline |
 | **L3 — Grafica** | Click → selezione con maniglie move/resize; pannello proprietà (font, dimensione, peso, colore, allineamento, sfondo, raggio, opacità, padding, z-index); aggiungi testo / rettangolo / immagine; **undo/redo**; nudge con frecce |
+| **Apri / Salva** | Apri un `.html` e **salva direttamente su quel file** (File System Access API, Chromium) con autosave; ⌘S. Fallback download su Firefox/Safari |
+| **Clipboard** | ⌘C / ⌘V / ⌘D copia / incolla / duplica elemento |
+| **Tema** | Toggle chiaro/scuro (☾/☀), ricordato; il canvas mostra il deck col suo stile |
 | **Export HTML** | Deck pulito, standalone, navigabile (frecce/click), ri-apribile dall'editor e da Claude |
 | **Export PDF** | Stampa browser con `@page` 16:9 (960×540pt) → 1 slide = 1 pagina, formato identico |
-| **Import** | Trascina un `deck.html` (o "Importa"): parse di `<style>` + `<section class="slide">` |
+| **Import** | Trascina un `deck.html` (o "Apri"): parse di `<style>` + `<section class="slide">` |
+
+## Test
+
+```bash
+bash tests/run.sh    # regressione moduli core (serve python3 + Chrome, niente dep npm)
+```
 
 ## Architettura
 

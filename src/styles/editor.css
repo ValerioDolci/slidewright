@@ -39,7 +39,12 @@ button { font-family: inherit; }
 }
 .topbar__group { display: flex; align-items: center; gap: 6px; }
 .topbar__sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
-.topbar__spacer { flex: 1; }
+.topbar__spacer { flex: 1; display: flex; justify-content: center; min-width: 0; }
+.topbar__file {
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--fg-mut);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px;
+}
+.topbar__file.is-dirty { color: var(--amber-bright); }
 
 /* ---------------- buttons ---------------- */
 .btn {
@@ -61,6 +66,8 @@ button { font-family: inherit; }
 .btn--ghost:hover { background: rgba(180,83,9,0.12); border-color: rgba(180,83,9,0.4); color: var(--fg); }
 .btn--sm { padding: 5px 9px; font-size: 11.5px; }
 .btn--block { display: block; width: 100%; text-align: center; margin-top: 4px; }
+.btn--accent { color: #fff; border-color: var(--amber); background: linear-gradient(180deg, #c75d0c, var(--amber)); }
+.btn--accent:hover { border-color: var(--amber-bright); }
 .btn--danger { color: #e7a09a; border-color: rgba(176,65,58,0.5); }
 .btn--danger:hover { background: rgba(176,65,58,0.18); border-color: var(--danger); color: #fff; }
 

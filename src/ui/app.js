@@ -16,11 +16,18 @@ import { Stage } from './stage.js';
 import { Sidebar } from './sidebar.js';
 import { Inspector } from './inspector.js';
 import { SelectionLayer } from './selection.js';
+import { fsSupported, openDeckFile, pickSaveFile, writeHandle, ensureWritable } from '../core/persistence.js';
 import { $, downloadText, readFileText, readFileDataURL } from '../util/dom.js';
 import { EDITOR_ATTR, uid } from '../util/id.js';
+import { externalize, inline } from '../core/assets.js';
 
 export class App {
   constructor() {
+    this._fileHandle = null;     // handle FS API del file aperto (se presente)
+    this._fileName = null;
+    this._dirty = false;
+    this._loading = false;       // sopprime il "dirty" durante import
+    this._clipboard = null;      // HTML elemento copiato (⌘C/⌘V)
     this.stage = new Stage({
       sceneEl: $('#stage-scene'),
       canvasEl: $('#stage-canvas'),
@@ -40,14 +47,22 @@ export class App {
     this._initTheme();
 
     store.subscribe((reason) => this._onStore(reason));
+    window.addEventListener('beforeunload', (e) => {
+      if (this._dirty) { e.preventDefault(); e.returnValue = ''; }
+    });
     this.renderAll();
-    this._hint('Pronto. Doppio click sul testo per modificarlo, trascina gli elementi liberi.');
+    this._updateFileStatus();
+    this._hint(fsSupported
+      ? 'Pronto. Apri un file per salvarci sopra, oppure doppio click sul testo per modificarlo.'
+      : 'Pronto. Doppio click sul testo per modificarlo, trascina gli elementi liberi.');
   }
 
   // ---------- store reactions (solo UI leggera) ----------
   _onStore(reason) {
     this._updateToolbarState();
     if (reason === 'current') this.sidebar.setActive(store.currentIndex);
+    // ogni cambio al DOCUMENTO marca dirty (non i cambi di sola UI)
+    if (reason !== 'current' && reason !== 'selection' && !this._loading) this._markDirty();
   }
 
   // ---------- stage ----------
@@ -122,7 +137,8 @@ export class App {
     const on = (action, fn) => {
       document.querySelectorAll(`[data-action="${action}"]`).forEach((b) => b.addEventListener('click', fn));
     };
-    on('import', () => $('#file-input').click());
+    on('import', () => this._open());
+    on('save', () => this._save());
     on('new-deck', () => this._newDeck());
     on('export-html', () => this._exportHtml());
     on('export-pdf', () => this._exportPdf());
@@ -155,14 +171,20 @@ export class App {
     window.addEventListener('keydown', (e) => {
       const help = $('#help-pop');
       if (help && !help.hidden) { if (e.key === 'Escape') help.hidden = true; return; }
-      if (this.stage.isEditing()) return; // lascia lavorare il contenteditable
       const meta = e.metaKey || e.ctrlKey;
+      // ⌘S salva anche mentre si edita il testo
+      if (meta && e.key.toLowerCase() === 's') { e.preventDefault(); this._save(); return; }
+      if (this.stage.isEditing()) return; // lascia lavorare il contenteditable
       if (meta && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         e.shiftKey ? this._redo() : this._undo();
         return;
       }
       if (meta && e.key.toLowerCase() === 'y') { e.preventDefault(); this._redo(); return; }
+      const sel = store.selectedEid;
+      if (meta && e.key.toLowerCase() === 'c' && sel) { this._copyElement(sel); return; }
+      if (meta && e.key.toLowerCase() === 'v' && this._clipboard) { e.preventDefault(); this._pasteElement(); return; }
+      if (meta && e.key.toLowerCase() === 'd' && sel) { e.preventDefault(); this._duplicateElement(sel); return; }
       if (e.key === 'Escape') { this._deselect(); return; }
       const eid = store.selectedEid;
       if (!eid) return;
@@ -371,6 +393,32 @@ export class App {
     this.commitStage('Elimina elemento');
   }
 
+  // ---------- clipboard (⌘C / ⌘V / ⌘D) ----------
+  _copyElement(eid) {
+    const elm = this.stage.getElement(eid);
+    if (!elm || elm.id === 'ss-slide') return;
+    this._clipboard = externalize(elm.outerHTML); // immagini → placeholder asset
+    this._hint('Elemento copiato — ⌘V per incollare.');
+  }
+
+  _pasteElement() {
+    const slide = this.stage.slideEl;
+    if (!slide || !this._clipboard) return;
+    const tpl = this.stage.doc.createElement('template');
+    tpl.innerHTML = inline(this._clipboard);
+    const node = tpl.content.firstElementChild;
+    if (!node) return;
+    node.querySelectorAll(`[${EDITOR_ATTR}]`).forEach((n) => n.setAttribute(EDITOR_ATTR, uid('e')));
+    node.setAttribute(EDITOR_ATTR, uid('e'));
+    if (node.style.position === 'absolute' || node.style.position === 'fixed') {
+      node.style.left = `${(parseInt(node.style.left, 10) || 40) + 24}px`;
+      node.style.top = `${(parseInt(node.style.top, 10) || 40) + 24}px`;
+    }
+    slide.appendChild(node);
+    this.commitStage('Incolla elemento');
+    this.stage.onSelect(node.getAttribute(EDITOR_ATTR));
+  }
+
   _addSlide() {
     this.commitStage(null);
     store.commit('Nuova slide', (d) => {
@@ -381,37 +429,132 @@ export class App {
   }
 
   // ---------- file / deck ----------
+  _confirmDiscard() {
+    if (!this._dirty) return true;
+    return window.confirm('Hai modifiche non salvate. Continuare e perderle?');
+  }
+
+  async _open() {
+    if (!this._confirmDiscard()) return;
+    if (fsSupported) {
+      try {
+        const { handle, text, name } = await openDeckFile();
+        this._loadDeckFromText(text, name, handle);
+      } catch (_) { /* annullato dall'utente */ }
+    } else {
+      $('#file-input').click();
+    }
+  }
+
   _newDeck() {
+    if (!this._confirmDiscard()) return;
+    this._loading = true;
     store.setDeck(createDeck());
     this.renderAll();
-    this._hint('Nuovo deck creato.');
+    this._loading = false;
+    this._fileHandle = null; this._fileName = null;
+    this._dirty = true; // nuovo deck = non ancora salvato
+    this._updateFileStatus();
+    this._hint(fsSupported ? 'Nuovo deck. ⌘S per salvarlo su un file.' : 'Nuovo deck creato.');
   }
 
   async _onImportFile(e) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    this._loadDeckFromText(await readFileText(file), file.name);
+    this._loadDeckFromText(await readFileText(file), file.name); // fallback: nessun handle
   }
 
-  _loadDeckFromText(text, name) {
+  _loadDeckFromText(text, name, handle = null) {
+    this._loading = true;
     try {
       const deck = parseDeck(text);
       deck.meta.title = deck.meta.title || name.replace(/\.html?$/i, '');
       store.setDeck(deck);
       this.renderAll();
+      this._fileHandle = handle;
+      this._fileName = name || null;
+      this._dirty = false;
       const warn = deck._warnings?.length ? ` ⚠ ${deck._warnings[0]}` : '';
-      this._hint(`Importato "${deck.meta.title}" — ${deck.slides.length} slide.${warn}`);
+      const where = handle ? ' — le modifiche si salveranno su questo file' : '';
+      this._hint(`Aperto "${deck.meta.title}" — ${deck.slides.length} slide${where}.${warn}`);
     } catch (err) {
-      this._hint(`Errore import: ${err.message}`);
+      this._hint(`Errore apertura: ${err.message}`);
+    } finally {
+      this._loading = false;
+      this._updateFileStatus();
     }
+  }
+
+  // ---------- salvataggio diretto sul file (.html) ----------
+  async _save() {
+    if (!this._fileHandle) return this._saveAs();
+    clearTimeout(this._saveT);
+    try {
+      if (!(await ensureWritable(this._fileHandle))) { this._setFileStatus('permesso negato'); return; }
+      this.commitStage(null); // cattura testo in corso di modifica
+      this._setFileStatus('salvataggio…');
+      await writeHandle(this._fileHandle, buildDeckHtml(store.deck));
+      this._dirty = false;
+      this._updateFileStatus();
+    } catch (err) {
+      this._setFileStatus('errore salvataggio');
+    }
+  }
+
+  async _saveAs() {
+    clearTimeout(this._saveT);
+    this.commitStage(null);
+    const html = buildDeckHtml(store.deck);
+    const name = `${slug(store.deck.meta.title)}.html`;
+    if (fsSupported) {
+      try {
+        const handle = await pickSaveFile(name);
+        this._fileHandle = handle;
+        this._fileName = handle.name;
+        await writeHandle(handle, html);
+        this._dirty = false;
+        this._updateFileStatus();
+      } catch (_) { /* annullato */ }
+    } else {
+      downloadText(name, html);
+      this._dirty = false;
+      this._updateFileStatus();
+    }
+  }
+
+  _markDirty() {
+    this._dirty = true;
+    this._updateFileStatus();
+    if (this._fileHandle) { // autosave sul file aperto (debounce)
+      clearTimeout(this._saveT);
+      this._saveT = setTimeout(() => this._save(), 1200);
+    }
+  }
+
+  _updateFileStatus() {
+    const el = $('#file-status');
+    if (el) {
+      const name = this._fileName || (this._dirty ? '(non salvato)' : '');
+      el.textContent = name ? `${name}${this._dirty ? ' ●' : ''}` : '';
+      el.classList.toggle('is-dirty', this._dirty);
+    }
+    const sb = document.querySelector('[data-action="save"]');
+    if (sb) sb.classList.toggle('btn--accent', this._dirty);
+  }
+
+  _setFileStatus(msg) {
+    const el = $('#file-status');
+    if (!el) return;
+    if (msg) el.textContent = msg;
+    else this._updateFileStatus();
   }
 
   _exportHtml() {
     this.commitStage(null);
     const html = buildDeckHtml(store.deck);
     downloadText(`${slug(store.deck.meta.title)}.html`, html);
-    this._hint('HTML esportato.');
+    this._hint('HTML esportato (copia separata).');
   }
 
   async _exportPdf() {

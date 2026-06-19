@@ -26,10 +26,11 @@
     </div>
 
     <div class="topbar__group" role="group" aria-label="File">
-      <button class="btn" data-action="import" title="Importa deck HTML">Importa</button>
+      <button class="btn" data-action="import" title="Apri un deck .html (le modifiche si salveranno su quel file)">Apri</button>
+      <button class="btn" data-action="save" title="Salva sul file (⌘S)">Salva</button>
       <button class="btn" data-action="new-deck" title="Nuovo deck vuoto">Nuovo</button>
       <span class="topbar__sep"></span>
-      <button class="btn" data-action="export-html" title="Esporta HTML pulito">Esporta HTML</button>
+      <button class="btn" data-action="export-html" title="Esporta una copia HTML">Esporta HTML</button>
       <button class="btn" data-action="export-pdf" title="Esporta PDF (stesso formato slide)">Esporta PDF</button>
     </div>
 
@@ -42,7 +43,9 @@
       <button class="btn" data-action="add-image" title="Aggiungi un'immagine"><span class="btn__ic">▣</span> Immagine</button>
     </div>
 
-    <div class="topbar__spacer"></div>
+    <div class="topbar__spacer">
+      <span class="topbar__file" id="file-status" title="File di lavoro"></span>
+    </div>
 
     <div class="topbar__group">
       <button class="btn btn--icon" data-action="theme" title="Tema chiaro / scuro" aria-label="Tema">☾</button>
@@ -69,7 +72,9 @@
         <div>
           <h4>Scorciatoie</h4>
           <ul>
+            <li><span class="help__k">⌘S</span> salva sul file</li>
             <li><span class="help__k">⌘Z</span> / <span class="help__k">⇧⌘Z</span> annulla / ripeti</li>
+            <li><span class="help__k">⌘C</span> / <span class="help__k">⌘V</span> / <span class="help__k">⌘D</span> copia / incolla / duplica</li>
             <li><span class="help__k">← ↑ → ↓</span> sposta 1px <span class="help__k">Shift = 10px</span></li>
             <li><span class="help__k">Canc</span> elimina · <span class="help__k">Esc</span> deseleziona</li>
           </ul>
