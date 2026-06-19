@@ -46,7 +46,9 @@ In Slide Studio c'è già:
 1. **Niente backend** (è il pregio del tool). Il browser chiama l'API del provider **direttamente**
    e la **chiave sta in locale**. OK per uso personale, **non** per distribuzione a terzi.
 2. **CORS**: non tutti i provider permettono la chiamata diretta da browser.
-   - ✅ Chiamabili da browser: **Ollama locale**, **LM Studio locale**, **OpenRouter**,
+   - ✅ Chiamabili da browser: **Mistral** (CORS `*` — **VERIFICATO 2026-06-19**: preflight 200,
+     `access-control-allow-origin: *`, Authorization ammesso; funziona anche da `file://`),
+     **Ollama locale**, **LM Studio locale**, **OpenRouter**,
      **Anthropic** (con header `anthropic-dangerous-direct-browser-access: true`), **Azure OpenAI**.
    - ⚠️ **OpenAI "puro"**: spesso serve un **mini-proxy locale** o un gateway CORS-friendly.
 3. **Costo token**: deck grandi = contesto; gestibile con la strategia §3, ma da monitorare.
