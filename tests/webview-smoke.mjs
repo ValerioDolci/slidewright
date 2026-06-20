@@ -113,6 +113,16 @@ const mockAndChecker = `
       await new Promise((r) => setTimeout(r, 400));
       const ss2 = document.getElementById('slide-frame').contentDocument.getElementById('ss-slide');
       A(!!ss2 && /Aggiornato esterno/.test(ss2.textContent || ''), 'host→webview: external-change ricarica il deck');
+
+      // --- export / present / pdf → host (step 5) ---
+      await window.__app._exportPdf();
+      const pe = window.__rpc.find((m) => m.method === 'printExternal');
+      A(!!pe && /ss-page|@page/.test((pe.args && pe.args.html) || ''), 'pdf: rpc printExternal con HTML di stampa');
+      window.__app._present();
+      await new Promise((r) => setTimeout(r, 30));
+      A(window.__rpc.some((m) => m.method === 'present'), 'present: rpc present inviato all\\'host');
+      await window.__app._exportHtml();
+      A(window.__rpc.some((m) => m.method === 'exportHtml'), 'export: rpc exportHtml inviato all\\'host');
     } catch (e) {
       fail++; log.push('EXCEPTION ' + e.message);
     }

@@ -136,9 +136,11 @@ class SlideStudioEditorProvider {
         await vscode.env.openExternal(uri);
         return;
       }
-      case 'exportPdf': {
-        // step 5: apriremo il deck nel browser esterno per "Salva come PDF".
-        vscode.window.showInformationMessage('Export PDF nel browser esterno: in arrivo (step 5).');
+      case 'printExternal': {
+        // PDF: apriamo l'HTML di stampa nel browser esterno (⌘/Ctrl+P → Salva come PDF).
+        const uri = await writeTemp(this.context, 'print.html', args.html);
+        await vscode.env.openExternal(uri);
+        vscode.window.showInformationMessage('PDF: nel browser usa ⌘/Ctrl+P → "Salva come PDF" e attiva "Grafica di sfondo".');
         return;
       }
       case 'llmChat': {

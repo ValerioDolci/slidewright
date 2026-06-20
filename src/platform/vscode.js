@@ -11,6 +11,8 @@
  * o apertura accidentale nel browser) i metodi degradano senza esplodere.
  */
 
+import { buildPrintHtml, computeBodyBackground } from '../core/export-pdf.js';
+
 const vscode = typeof acquireVsCodeApi === 'function' ? acquireVsCodeApi() : null;
 
 let _seq = 0;
@@ -76,7 +78,17 @@ export class VsCodePlatform {
 
   // ---------- export / present ----------
   exportHtml(html, name) { return rpc('exportHtml', { html, name }); }
-  exportPdf(deck) { return rpc('exportPdf', { deck }); }
+
+  async exportPdf(deck) {
+    // Costruiamo l'HTML di stampa QUI (la webview ha il DOM per computeBodyBackground),
+    // poi l'host lo apre nel browser esterno: l'utente fa ⌘/Ctrl+P → "Salva come PDF"
+    // (window.print() non apre il dialogo dentro la webview → step 5).
+    const isDoc = (deck.mode || 'deck') === 'doc';
+    const pageBackground = isDoc ? '' : await computeBodyBackground(deck.styleCss);
+    const html = buildPrintHtml(deck, { pageBackground });
+    return rpc('printExternal', { html });
+  }
+
   present(html) { return rpc('present', { html }); }
 
   // ---------- handshake con l'host ----------
