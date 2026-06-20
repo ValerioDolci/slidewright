@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "build:single": "SINGLEFILE=1 vite build",
+    "build:vscode": "TARGET=vscode vite build",
     "preview": "vite preview"
   },
   "dependencies": {

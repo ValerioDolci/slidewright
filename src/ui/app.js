@@ -554,6 +554,11 @@ export class App {
     this._hint(this.platform.capabilities.directSave ? 'Nuovo deck. ⌘S per salvarlo su un file.' : 'Nuovo deck creato.');
   }
 
+  /** Carica un deck fornito dall'host (Custom Editor VS Code): documento legato. */
+  loadFromHost(text, name) {
+    this._loadDeckFromText(text, name || 'deck.html', true);
+  }
+
   _loadDeckFromText(text, name, bound = false) {
     if (!bound) this.platform.discardCurrent(); // drop/fallback: niente handle stantio del file precedente
     this._loading = true;

@@ -1,0 +1,6 @@
+Copyright (c) 2026 Valerio Dolci. Tutti i diritti riservati.
+
+Software proprietario. Nessuna licenza d'uso, copia, modifica o distribuzione
+è concessa senza autorizzazione scritta dell'autore.
+(Segnaposto: sostituire con la licenza definitiva prima di un'eventuale
+pubblicazione su Marketplace / Open VSX.)

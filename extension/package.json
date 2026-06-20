@@ -1,0 +1,54 @@
+{
+  "name": "slidewright",
+  "displayName": "Slide Studio",
+  "description": "Editor visuale per deck di slide HTML: riordino, editing testo e grafico, export, agente LLM (Copilot via vscode.lm).",
+  "version": "0.1.0",
+  "publisher": "valeriodolci",
+  "license": "SEE LICENSE IN LICENSE.txt",
+  "repository": { "type": "git", "url": "https://github.com/ValerioDolci/slidewright" },
+  "engines": { "vscode": "^1.90.0" },
+  "categories": ["Visualization", "Other"],
+  "main": "./extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "slidewright.deck",
+        "displayName": "Slide Studio",
+        "selector": [
+          { "filenamePattern": "*.html" },
+          { "filenamePattern": "*.htm" }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "slidewright.openWith",
+        "title": "Slide Studio: apri il file HTML nell'editor visuale"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "slidewright.openWith",
+          "when": "resourceExtname == .html || resourceExtname == .htm",
+          "group": "navigation@9"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "slidewright.openWith",
+          "when": "resourceExtname == .html || resourceExtname == .htm",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.0.0"
+  }
+}
