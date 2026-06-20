@@ -1,8 +1,9 @@
 /**
  * ChatPanel: finestra flottante con l'assistente + configurazione delle
  * connessioni LLM (provider-neutrale). Le connessioni e la scelta attiva
- * vivono in localStorage. La UI è "muta": emette onSend(text); l'app esegue
- * l'agente e richiama addAssistant/addError/addStep.
+ * vivono nello `storage` fornito dal platform (localStorage su web, stato
+ * webview/globalState su VS Code). La UI è "muta": emette onSend(text);
+ * l'app esegue l'agente e richiama addAssistant/addError/addStep.
  */
 
 import { el } from '../util/dom.js';
@@ -13,7 +14,8 @@ const LS_CONN = 'ss-llm-connections';
 const LS_ACTIVE = 'ss-llm-active';
 
 export class ChatPanel {
-  constructor() {
+  constructor({ storage }) {
+    this.storage = storage; // kv persistente fornito dal platform (web/vscode)
     this.onSend = () => {};
     this.busy = false;
     this._loadConnections();
@@ -22,15 +24,13 @@ export class ChatPanel {
 
   // ---------- connessioni ----------
   _loadConnections() {
-    try { this.connections = JSON.parse(localStorage.getItem(LS_CONN)) || []; } catch (_) { this.connections = []; }
-    try { this.activeId = localStorage.getItem(LS_ACTIVE) || null; } catch (_) { this.activeId = null; }
+    try { this.connections = JSON.parse(this.storage.get(LS_CONN)) || []; } catch (_) { this.connections = []; }
+    this.activeId = this.storage.get(LS_ACTIVE) || null;
     if (!this.activeId && this.connections[0]) this.activeId = this.connections[0].id;
   }
   _saveConnections() {
-    try {
-      localStorage.setItem(LS_CONN, JSON.stringify(this.connections));
-      localStorage.setItem(LS_ACTIVE, this.activeId || '');
-    } catch (_) { /* noop */ }
+    this.storage.set(LS_CONN, JSON.stringify(this.connections));
+    this.storage.set(LS_ACTIVE, this.activeId || '');
   }
   getActiveConnection() {
     return this.connections.find((c) => c.id === this.activeId) || null;

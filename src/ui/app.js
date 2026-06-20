@@ -11,22 +11,20 @@ import { store } from '../core/store.js';
 import { createDeck, createSlide, cloneDeck, emptySlideHtml, CANVAS } from '../core/model.js';
 import { parseDeck } from '../core/import.js';
 import { buildDeckHtml } from '../core/export-html.js';
-import { exportPdf } from '../core/export-pdf.js';
 import { Stage } from './stage.js';
 import { Sidebar } from './sidebar.js';
 import { Inspector } from './inspector.js';
 import { SelectionLayer } from './selection.js';
 import { ChatPanel } from './chat.js';
 import { runAgentTurn } from '../core/agent.js';
-import { fsSupported, openDeckFile, pickSaveFile, writeHandle, ensureWritable } from '../core/persistence.js';
-import { $, downloadText, readFileText, readFileDataURL } from '../util/dom.js';
+import { $, readFileText, readFileDataURL } from '../util/dom.js';
 import { EDITOR_ATTR, uid } from '../util/id.js';
 import { externalize, inline, describeAssetsForLlm, collectAssetIds, pruneAssets } from '../core/assets.js';
 import { sanitizeHtml } from '../core/sanitize.js';
 
 export class App {
-  constructor() {
-    this._fileHandle = null;     // handle FS API del file aperto (se presente)
+  constructor({ platform }) {
+    this.platform = platform;    // host adapter (web / vscode) — vedi platform/index.js
     this._fileName = null;
     this._dirty = false;
     this._loading = false;       // sopprime il "dirty" durante import
@@ -40,7 +38,7 @@ export class App {
     this.sidebar = new Sidebar($('#thumbs'));
     this.inspector = new Inspector($('#inspector-title'), $('#inspector-body'));
     this.selection = new SelectionLayer(this.stage);
-    this.chat = new ChatPanel();
+    this.chat = new ChatPanel({ storage: platform.storage });
     this.chat.onSend = (text) => this._runAgent(text);
     this._agentHistory = [];
 
@@ -58,7 +56,7 @@ export class App {
     });
     this.renderAll();
     this._updateFileStatus();
-    this._hint(fsSupported
+    this._hint(this.platform.capabilities.directSave
       ? 'Pronto. Apri un file per salvarci sopra, oppure doppio click sul testo per modificarlo.'
       : 'Pronto. Doppio click sul testo per modificarlo, trascina gli elementi liberi.');
   }
@@ -162,7 +160,6 @@ export class App {
     on('theme', () => this._toggleTheme());
     on('chat', () => this.chat.toggle());
 
-    $('#file-input').addEventListener('change', (e) => this._onImportFile(e));
     $('#image-input').addEventListener('change', (e) => this._onImageFile(e));
   }
 
@@ -362,6 +359,7 @@ export class App {
         history: this._agentHistory,
         userText: text,
         exec: (name, args) => this._agentExec(name, args),
+        chatFn: (a) => this.platform.llmChat(a),
         onStep: (n, a) => this.chat.addStep(n, a),
       });
       this.chat.addAssistant(reply);
@@ -440,12 +438,12 @@ export class App {
 
   // ---------- tema ----------
   _initTheme() {
-    this._theme = (() => { try { return localStorage.getItem('ss-theme') || 'dark'; } catch (_) { return 'dark'; } })();
+    this._theme = this.platform.storage.get('ss-theme') || 'dark';
     this._applyTheme();
   }
   _toggleTheme() {
     this._theme = this._theme === 'light' ? 'dark' : 'light';
-    try { localStorage.setItem('ss-theme', this._theme); } catch (_) { /* noop */ }
+    this.platform.storage.set('ss-theme', this._theme);
     this._applyTheme();
     this.stage.fitScale();
     this.selection.refresh();
@@ -531,44 +529,33 @@ export class App {
   }
 
   // ---------- file / deck ----------
-  _confirmDiscard() {
+  async _confirmDiscard() {
     if (!this._dirty) return true;
-    return window.confirm('Hai modifiche non salvate. Continuare e perderle?');
+    return this.platform.confirm('Hai modifiche non salvate. Continuare e perderle?');
   }
 
   async _open() {
-    if (!this._confirmDiscard()) return;
-    if (fsSupported) {
-      try {
-        const { handle, text, name } = await openDeckFile();
-        this._loadDeckFromText(text, name, handle);
-      } catch (_) { /* annullato dall'utente */ }
-    } else {
-      $('#file-input').click();
-    }
+    if (!(await this._confirmDiscard())) return;
+    const res = await this.platform.openDeck();
+    if (res) this._loadDeckFromText(res.text, res.name, this.platform.canDirectSave());
   }
 
-  _newDeck() {
-    if (!this._confirmDiscard()) return;
+  async _newDeck() {
+    if (!(await this._confirmDiscard())) return;
     this._loading = true;
     store.setDeck(createDeck());
     pruneAssets(new Set()); // deck vuoto: libera tutti gli asset del deck precedente
     this.renderAll();
     this._loading = false;
-    this._fileHandle = null; this._fileName = null;
+    this.platform.discardCurrent();
+    this._fileName = null;
     this._dirty = true; // nuovo deck = non ancora salvato
     this._updateFileStatus();
-    this._hint(fsSupported ? 'Nuovo deck. ⌘S per salvarlo su un file.' : 'Nuovo deck creato.');
+    this._hint(this.platform.capabilities.directSave ? 'Nuovo deck. ⌘S per salvarlo su un file.' : 'Nuovo deck creato.');
   }
 
-  async _onImportFile(e) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    this._loadDeckFromText(await readFileText(file), file.name); // fallback: nessun handle
-  }
-
-  _loadDeckFromText(text, name, handle = null) {
+  _loadDeckFromText(text, name, bound = false) {
+    if (!bound) this.platform.discardCurrent(); // drop/fallback: niente handle stantio del file precedente
     this._loading = true;
     try {
       const deck = parseDeck(text);
@@ -577,11 +564,10 @@ export class App {
       // history azzerata da setDeck → si possono liberare gli asset del deck precedente
       pruneAssets(collectAssetIds(deck.slides.map((s) => s.html)));
       this.renderAll();
-      this._fileHandle = handle;
       this._fileName = name || null;
       this._dirty = false;
       const warn = deck._warnings?.length ? ` ⚠ ${deck._warnings[0]}` : '';
-      const where = handle ? ' — le modifiche si salveranno su questo file' : '';
+      const where = bound ? ' — le modifiche si salveranno su questo file' : '';
       this._hint(`Aperto "${deck.meta.title}" — ${deck.slides.length} slide${where}.${warn}`);
     } catch (err) {
       this._hint(`Errore apertura: ${err.message}`);
@@ -593,45 +579,33 @@ export class App {
 
   // ---------- salvataggio diretto sul file (.html) ----------
   async _save() {
-    if (!this._fileHandle) return this._saveAs();
+    if (!this.platform.canDirectSave()) return this._saveAs();
     clearTimeout(this._saveT);
-    try {
-      if (!(await ensureWritable(this._fileHandle))) { this._setFileStatus('permesso negato'); return; }
-      this.commitStage(null); // cattura testo in corso di modifica
-      this._setFileStatus('salvataggio…');
-      await writeHandle(this._fileHandle, buildDeckHtml(store.deck));
-      this._dirty = false;
-      this._updateFileStatus();
-    } catch (err) {
-      this._setFileStatus('errore salvataggio');
-    }
+    this.commitStage(null); // cattura testo in corso di modifica
+    this._setFileStatus('salvataggio…');
+    const r = await this.platform.save(buildDeckHtml(store.deck));
+    if (r === 'no-doc') return this._saveAs();
+    if (r === 'denied') { this._setFileStatus('permesso negato'); return; }
+    if (r === 'error') { this._setFileStatus('errore salvataggio'); return; }
+    this._dirty = false;
+    this._updateFileStatus();
   }
 
   async _saveAs() {
     clearTimeout(this._saveT);
     this.commitStage(null);
-    const html = buildDeckHtml(store.deck);
     const name = `${slug(store.deck.meta.title)}.html`;
-    if (fsSupported) {
-      try {
-        const handle = await pickSaveFile(name);
-        this._fileHandle = handle;
-        this._fileName = handle.name;
-        await writeHandle(handle, html);
-        this._dirty = false;
-        this._updateFileStatus();
-      } catch (_) { /* annullato */ }
-    } else {
-      downloadText(name, html);
-      this._dirty = false;
-      this._updateFileStatus();
-    }
+    const r = await this.platform.saveAs(buildDeckHtml(store.deck), name);
+    if (r.status !== 'saved') return; // annullato / errore
+    this._fileName = r.name || name;
+    this._dirty = false;
+    this._updateFileStatus();
   }
 
   _markDirty() {
     this._dirty = true;
     this._updateFileStatus();
-    if (this._fileHandle) { // autosave sul file aperto (debounce)
+    if (this.platform.canDirectSave()) { // autosave sul file aperto (debounce)
       clearTimeout(this._saveT);
       this._saveT = setTimeout(() => this._save(), 1200);
     }
@@ -655,26 +629,21 @@ export class App {
     else this._updateFileStatus();
   }
 
-  _exportHtml() {
+  async _exportHtml() {
     this.commitStage(null);
-    const html = buildDeckHtml(store.deck);
-    downloadText(`${slug(store.deck.meta.title)}.html`, html);
+    await this.platform.exportHtml(buildDeckHtml(store.deck), `${slug(store.deck.meta.title)}.html`);
     this._hint('HTML esportato (copia separata).');
   }
 
   async _exportPdf() {
     this.commitStage(null);
     this._hint('Apertura stampa… scegli "Salva come PDF" e attiva "Grafica di sfondo".');
-    await exportPdf(store.deck);
+    await this.platform.exportPdf(store.deck);
   }
 
   _present() {
     this.commitStage(null);
-    const html = buildDeckHtml(store.deck);
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    this.platform.present(buildDeckHtml(store.deck));
   }
 
   // ---------- misc ----------
