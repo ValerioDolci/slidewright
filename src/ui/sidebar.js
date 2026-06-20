@@ -38,7 +38,7 @@ export class Sidebar {
     deck.slides.forEach((slide, i) => {
       const frame = el('iframe', {
         class: 'thumb__frame', tabindex: '-1', 'aria-hidden': 'true',
-        scrolling: 'no', referrerpolicy: 'no-referrer',
+        scrolling: 'no', referrerpolicy: 'no-referrer', sandbox: '',
       });
       frame.srcdoc = this._thumbDoc(deck, slide);
 

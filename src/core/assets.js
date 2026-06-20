@@ -21,6 +21,24 @@ export function getAsset(id) {
   return registry.get(id) || '';
 }
 
+/** Id asset (`data-ss-asset="aN"`) referenziati in una lista di HTML (le slide). */
+export function collectAssetIds(htmlList) {
+  const ids = new Set();
+  const re = new RegExp(`${ASSET_ATTR}="([^"]+)"`, 'g');
+  for (const html of htmlList) {
+    let m;
+    while ((m = re.exec(html || ''))) ids.add(m[1]);
+  }
+  return ids;
+}
+
+/** Rimuove dal pool gli asset non più referenziati (evita la crescita illimitata
+ *  del registry su import ripetuti). Sicuro solo quando la history è coerente con
+ *  `keepIds` — es. subito dopo `setDeck`, che azzera undo/redo. */
+export function pruneAssets(keepIds) {
+  for (const id of [...registry.keys()]) if (!keepIds.has(id)) registry.delete(id);
+}
+
 /**
  * Sostituisce le immagini base64 con placeholder (src vuoto + id asset),
  * spostando i dataURL nel registry. Riusa l'id esistente se già presente
@@ -56,6 +74,25 @@ export function inline(html, { forExport = false } = {}) {
     const data = getAsset(id);
     if (data) img.setAttribute('src', data);
     if (forExport) img.removeAttribute(ASSET_ATTR);
+  });
+  return tpl.innerHTML;
+}
+
+/**
+ * Versione "per LLM": rende le immagini con un placeholder testuale e MAI il
+ * dataURL base64 — altrimenti un'immagine da 1MB gonfierebbe il prompt di ~1.3M
+ * caratteri (costo/limite di contesto). Conserva `data-ss-asset` come riferimento
+ * così, se il modello lo mantiene, l'immagine viene ripristinata da `inline()`.
+ */
+export function describeAssetsForLlm(html) {
+  if (!html || (html.indexOf('data:') === -1 && html.indexOf(ASSET_ATTR) === -1)) return html;
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  tpl.content.querySelectorAll('img').forEach((img) => {
+    const id = img.getAttribute(ASSET_ATTR);
+    const src = img.getAttribute('src') || '';
+    if (id) img.setAttribute('src', `(immagine ${id})`);
+    else if (src.startsWith('data:')) img.setAttribute('src', '(immagine)');
   });
   return tpl.innerHTML;
 }

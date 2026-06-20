@@ -89,6 +89,7 @@ function systemPrompt(ctx) {
     'Regole:',
     '- Rispetta lo stile e le classi del deck esistente (.header/.content/.card/.grid-2/.grid-3/.pill/.footer, variabili CSS :root).',
     '- Per cambi globali (palette, font) usa set_style_css; per cambi a una slide usa update_slide.',
+    '- Le immagini compaiono come <img src="(immagine aN)" data-ss-asset="aN">: NON modificare l\'attributo data-ss-asset (è il riferimento al file), così l\'immagine resta intatta.',
     '- Mai inserire <script>. Mantieni l\'HTML pulito.',
     '- Quando hai finito, rispondi in italiano con un breve riassunto di cosa hai fatto.',
     '',

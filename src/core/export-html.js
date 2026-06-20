@@ -12,12 +12,13 @@
 
 import { EDITOR_ATTR } from '../util/id.js';
 import { inline } from './assets.js';
+import { sanitizeFragment } from './sanitize.js';
 
 /** Rimuove dagli elementi gli attributi interni dell'editor + reinserisce gli asset. */
 export function cleanSlideHtml(html) {
   const tpl = document.createElement('template');
   tpl.innerHTML = inline(html, { forExport: true }); // base64 reali, via attr asset rimosso
-  tpl.content.querySelectorAll('script').forEach((n) => n.remove()); // mai esportare script
+  sanitizeFragment(tpl.content); // mai esportare script / handler inline / javascript:
   tpl.content.querySelectorAll('*').forEach((node) => {
     node.removeAttribute(EDITOR_ATTR);
     node.removeAttribute('contenteditable');

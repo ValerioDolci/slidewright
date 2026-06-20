@@ -8,6 +8,7 @@
 import { CANVAS } from './model.js';
 import { uid } from '../util/id.js';
 import { externalize } from './assets.js';
+import { sanitizeHtml } from './sanitize.js';
 
 const FONT_HOST = /fonts\.(googleapis|gstatic)\.com/i;
 
@@ -54,12 +55,10 @@ export function parseDeck(htmlString) {
     if (deckWrap) sections = Array.from(deckWrap.querySelectorAll(':scope > section'));
   }
 
-  // sicurezza: niente <script> nelle slide (no esecuzione codice nell'editor/export).
-  // + externalize: le immagini base64 vanno nel pool asset (history leggera).
-  const prep = (node) => {
-    node.querySelectorAll('script').forEach((n) => n.remove());
-    return externalize(node.innerHTML.trim());
-  };
+  // sicurezza: niente <script> né handler inline (on*) / javascript: nelle slide
+  // (no esecuzione codice nell'editor/export). + externalize: le immagini base64
+  // vanno nel pool asset (history leggera).
+  const prep = (node) => externalize(sanitizeHtml(node.innerHTML.trim()));
 
   let slides;
   let mode;

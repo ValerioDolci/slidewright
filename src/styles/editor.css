@@ -228,6 +228,7 @@ button { font-family: inherit; }
 .insp__ctl:focus { outline: none; border-color: var(--amber); }
 .insp__ctl--range { padding: 0; accent-color: var(--amber); }
 .insp__color { display: flex; align-items: center; gap: 6px; }
+.insp__alpha { flex: 1; min-width: 0; height: 26px; accent-color: var(--amber); cursor: pointer; }
 .insp__swatch {
   width: 38px; height: 26px; padding: 0; border: 1px solid var(--line);
   border-radius: var(--radius); background: var(--ink-900); cursor: pointer;

@@ -8,7 +8,7 @@
  */
 
 import { store } from '../core/store.js';
-import { createDeck, createSlide, cloneDeck, emptySlideHtml } from '../core/model.js';
+import { createDeck, createSlide, cloneDeck, emptySlideHtml, CANVAS } from '../core/model.js';
 import { parseDeck } from '../core/import.js';
 import { buildDeckHtml } from '../core/export-html.js';
 import { exportPdf } from '../core/export-pdf.js';
@@ -21,7 +21,8 @@ import { runAgentTurn } from '../core/agent.js';
 import { fsSupported, openDeckFile, pickSaveFile, writeHandle, ensureWritable } from '../core/persistence.js';
 import { $, downloadText, readFileText, readFileDataURL } from '../util/dom.js';
 import { EDITOR_ATTR, uid } from '../util/id.js';
-import { externalize, inline } from '../core/assets.js';
+import { externalize, inline, describeAssetsForLlm, collectAssetIds, pruneAssets } from '../core/assets.js';
+import { sanitizeHtml } from '../core/sanitize.js';
 
 export class App {
   constructor() {
@@ -294,8 +295,8 @@ export class App {
     if (!slide) return;
     node.setAttribute(EDITOR_ATTR, uid('e'));
     node.style.position = 'absolute';
-    node.style.left = `${Math.round((1280 - w) / 2)}px`;
-    node.style.top = `${Math.round((720 - h) / 2)}px`;
+    node.style.left = `${Math.round((CANVAS.w - w) / 2)}px`;
+    node.style.top = `${Math.round((CANVAS.h - h) / 2)}px`;
     node.style.width = `${w}px`;
     slide.appendChild(node);
     this.commitStage('Aggiungi elemento');
@@ -380,7 +381,7 @@ export class App {
       currentIndex: store.currentIndex,
       slideTitles: d.slides.map((s, i) => `${i}: ${this._slideTitle(s)}`),
       styleCss: d.styleCss,
-      currentSlideHtml: inline(d.slides[store.currentIndex]?.html || ''),
+      currentSlideHtml: describeAssetsForLlm(d.slides[store.currentIndex]?.html || ''),
     };
   }
 
@@ -390,36 +391,36 @@ export class App {
     return t || '(senza titolo)';
   }
 
-  _stripScripts(html) {
-    const tpl = document.createElement('template');
-    tpl.innerHTML = html || '';
-    tpl.content.querySelectorAll('script').forEach((n) => n.remove());
-    return tpl.innerHTML;
-  }
-
   /** Esegue un tool dell'agente via store.commit (→ undo/redo + autosave). */
   _agentExec(name, args) {
     const d = store.deck;
-    const clean = (html) => externalize(this._stripScripts(html || ''));
+    const clean = (html) => externalize(sanitizeHtml(html || ''));
     switch (name) {
       case 'get_slide':
-        return { html: inline(d.slides[args.index]?.html ?? '') || null };
+        return { html: describeAssetsForLlm(d.slides[args.index]?.html ?? '') || null };
       case 'update_slide':
         if (!d.slides[args.index]) return { error: 'indice non valido' };
         store.commit('AI · modifica slide', (x) => { x.slides[args.index].html = clean(args.html); });
         this._afterAgentEdit(args.index); return { ok: true };
       case 'add_slide': {
-        const after = Number.isInteger(args.afterIndex) ? args.afterIndex : d.slides.length - 1;
+        const n = d.slides.length;
+        const after = Math.max(-1, Math.min(Number.isInteger(args.afterIndex) ? args.afterIndex : n - 1, n - 1));
         store.commit('AI · nuova slide', (x) => { x.slides.splice(after + 1, 0, createSlide(clean(args.html))); });
         this._afterAgentEdit(after + 1); return { ok: true, total: store.deck.slides.length };
       }
       case 'delete_slide':
+        if (!d.slides[args.index]) return { error: 'indice non valido' };
         if (d.slides.length <= 1) return { error: 'non puoi eliminare l\'ultima slide' };
         store.commit('AI · elimina slide', (x) => { x.slides.splice(args.index, 1); });
         this._afterAgentEdit(Math.min(args.index, store.deck.slides.length - 1)); return { ok: true };
-      case 'reorder_slides':
+      case 'reorder_slides': {
+        const n = d.slides.length;
+        const ok = Number.isInteger(args.from) && Number.isInteger(args.to) &&
+          args.from >= 0 && args.from < n && args.to >= 0 && args.to < n;
+        if (!ok) return { error: 'indici non validi' };
         store.commit('AI · riordina', (x) => { const [m] = x.slides.splice(args.from, 1); x.slides.splice(args.to, 0, m); });
         this._afterAgentEdit(args.to); return { ok: true };
+      }
       case 'set_style_css':
         store.commit('AI · stile globale', (x) => { x.styleCss = String(args.css || ''); });
         this._afterAgentEdit(); return { ok: true };
@@ -551,6 +552,7 @@ export class App {
     if (!this._confirmDiscard()) return;
     this._loading = true;
     store.setDeck(createDeck());
+    pruneAssets(new Set()); // deck vuoto: libera tutti gli asset del deck precedente
     this.renderAll();
     this._loading = false;
     this._fileHandle = null; this._fileName = null;
@@ -572,6 +574,8 @@ export class App {
       const deck = parseDeck(text);
       deck.meta.title = deck.meta.title || name.replace(/\.html?$/i, '');
       store.setDeck(deck);
+      // history azzerata da setDeck → si possono liberare gli asset del deck precedente
+      pruneAssets(collectAssetIds(deck.slides.map((s) => s.html)));
       this.renderAll();
       this._fileHandle = handle;
       this._fileName = name || null;

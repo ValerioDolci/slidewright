@@ -17,8 +17,9 @@
   <script type="module">
     import { parseDeck } from '/src/core/import.js';
     import { buildDeckHtml, cleanSlideHtml } from '/src/core/export-html.js';
-    import { externalize, inline } from '/src/core/assets.js';
+    import { externalize, inline, describeAssetsForLlm, collectAssetIds, pruneAssets } from '/src/core/assets.js';
     import { createDeck, cloneDeck } from '/src/core/model.js';
+    import { rgbaParts, hexToRgba } from '/src/ui/inspector.js';
 
     const log = []; let pass = 0, fail = 0;
     const A = (cond, msg) => {
@@ -31,7 +32,7 @@
 <style>@import url(https://fonts.googleapis.com/css?family=Inter);
 :root{--a:#b45309}.slide{position:absolute;inset:0}.card{background:rgba(255,255,255,.08);border-radius:16px}</style></head>
 <body><div class="deck">
-<section class="slide active"><h1>Uno</h1><div class="card">c</div><img src="${PNG}"></section>
+<section class="slide active"><h1>Uno</h1><div class="card">c</div><img src="${PNG}" onerror="window.__IMGHACK=1"></section>
 <section class="slide"><h2>Due</h2><scr` + `ipt>window.__HACK=1</scr` + `ipt></section>
 </div></body></html>`;
 
@@ -50,6 +51,11 @@
       // ---- script strip ----
       A(!/<script/i.test(deck.slides[1].html) && !window.__HACK, 'sicurezza: <script> rimosso, non eseguito');
 
+      // ---- handler inline (on*) / javascript: ----
+      A(!/onerror/i.test(deck.slides[0].html), 'sicurezza: attributo on* (onerror) rimosso in import');
+      const cl2 = cleanSlideHtml('<a href="javascript:alert(1)" onclick="x()">y</a>');
+      A(!/onclick/i.test(cl2) && !/javascript:/i.test(cl2), 'sicurezza: export rimuove on* e URL javascript:');
+
       // ---- assets pool ----
       A(deck.slides[0].html.includes('data-ss-asset') && !deck.slides[0].html.includes('base64'),
         'assets: import → placeholder leggero (no base64 nel modello)');
@@ -59,6 +65,19 @@
       A(externalize(inline(ex)).includes(id1), 'assets: re-externalize riusa lo stesso id (no leak)');
       const fin = inline(ex, { forExport: true });
       A(fin.includes('base64') && !fin.includes('data-ss-asset'), 'assets: inline forExport ripristina base64');
+
+      // ---- contesto LLM: niente base64 nel prompt ----
+      const llm = describeAssetsForLlm(deck.slides[0].html);     // modello: placeholder
+      A(!/data:|base64/i.test(llm) && /\(immagine/.test(llm), 'agente: describeAssetsForLlm → placeholder, niente base64');
+      const llm2 = describeAssetsForLlm(`<img src="${PNG}">`);    // dataURL "crudo" residuo
+      A(!/data:|base64/i.test(llm2), 'agente: anche un dataURL crudo viene tolto dal contesto LLM');
+
+      // ---- gc pool asset (prune dei non referenziati) ----
+      const tmpEx = externalize(`<img src="${PNG}">`);
+      A(inline(tmpEx).includes('base64'), 'gc: asset presente nel pool prima del prune');
+      pruneAssets(collectAssetIds(deck.slides.map((s) => s.html))); // tiene SOLO quelli del deck
+      A(!inline(tmpEx).includes('base64'), 'gc: pruneAssets libera gli asset non referenziati');
+      A(inline(deck.slides[0].html).includes('base64'), 'gc: gli asset referenziati restano nel pool');
 
       // ---- export ----
       const html = buildDeckHtml(deck);
@@ -84,6 +103,25 @@
       A(d.slides.length >= 1 && d.canvas.w === 1280, 'model: createDeck valido');
       const c = cloneDeck(d); c.slides[0].html = 'X';
       A(d.slides[0].html !== 'X', 'model: cloneDeck indipendente (deep copy)');
+
+      // ---- inspector: colore con alpha (no schiacciamento dell'opacità) ----
+      A(hexToRgba('#b45309', 0.2) === 'rgba(180, 83, 9, 0.2)', 'colore: hex+alpha → rgba');
+      const pa = rgbaParts('rgba(180, 83, 9, 0.18)');
+      A(pa.hex.toLowerCase() === '#b45309' && Math.abs(pa.a - 0.18) < 1e-6, 'colore: parse rgba → hex+alpha');
+      A(rgbaParts('rgb(16, 32, 48)').a === 1, 'colore: rgb senza alpha → a=1');
+
+      // ---- iframe sandbox: handler inline NON eseguito (difesa in profondità) ----
+      const sbx = document.createElement('iframe');
+      sbx.setAttribute('sandbox', 'allow-same-origin'); // come lo stage: DOM accessibile, script OFF
+      sbx.style.cssText = 'position:fixed;left:-9999px;width:10px;height:10px';
+      document.body.appendChild(sbx);
+      const sd = sbx.contentDocument;
+      sd.open();
+      sd.write('<!DOCTYPE html><img src="x" onerror="window.__SBX_PWNED=1">');
+      sd.close();
+      await new Promise((r) => setTimeout(r, 150));
+      A(!window.__SBX_PWNED, 'sicurezza: iframe sandbox blocca onerror (no allow-scripts)');
+      sbx.remove();
     } catch (e) {
       fail++; log.push(`<span class="bad">EXCEPTION</span> ${e.message}\n${e.stack}`);
     }

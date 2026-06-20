@@ -158,13 +158,24 @@ export class Inspector {
     return i;
   }
   _color(current, cb, allowTransparent = false) {
-    const hex = rgbToHex(current) || '#000000';
+    const { hex, a } = rgbaParts(current);
     const wrap = el('div', { class: 'insp__color' });
-    const i = el('input', { type: 'color', class: 'insp__swatch', value: hex });
-    i.addEventListener('input', (e) => cb(e.target.value, false));
-    i.addEventListener('change', (e) => cb(e.target.value, true));
-    wrap.append(i);
+    const sw = el('input', { type: 'color', class: 'insp__swatch', value: hex });
+    let alpha = a;
+    // alpha pieno → emette hex (compatibile con qualunque proprietà); altrimenti rgba
+    const emit = (commit) => cb(alpha >= 1 ? sw.value : hexToRgba(sw.value, alpha), commit);
+    sw.addEventListener('input', () => emit(false));
+    sw.addEventListener('change', () => emit(true));
+    wrap.append(sw);
     if (allowTransparent) {
+      // slider opacità del colore stesso (preserva l'alpha invece di schiacciarlo)
+      const rng = el('input', {
+        type: 'range', class: 'insp__alpha', min: '0', max: '100',
+        value: String(Math.round(a * 100)), title: 'Opacità del colore',
+      });
+      rng.addEventListener('input', () => { alpha = Number(rng.value) / 100; emit(false); });
+      rng.addEventListener('change', () => { alpha = Number(rng.value) / 100; emit(true); });
+      wrap.append(rng);
       wrap.append(el('button', {
         class: 'insp__clear', title: 'Trasparente', text: '∅',
         onClick: () => cb('transparent', true),
@@ -193,4 +204,23 @@ function rgbToHex(s) {
   const [r, g, b] = m[1].split(',').map((x) => parseInt(x, 10));
   if ([r, g, b].some((n) => Number.isNaN(n))) return null;
   return '#' + [r, g, b].map((n) => n.toString(16).padStart(2, '0')).join('');
+}
+
+/** Estrae { hex, a } da un colore CSS (rgb/rgba/#hex). a∈[0,1]. */
+export function rgbaParts(s) {
+  const m = String(s || '').match(/rgba?\(([^)]+)\)/);
+  if (!m) return { hex: rgbToHex(s) || '#000000', a: 1 };
+  const p = m[1].split(',').map((x) => x.trim());
+  const [r, g, b] = p.map((x) => parseInt(x, 10));
+  if ([r, g, b].some((n) => Number.isNaN(n))) return { hex: '#000000', a: 1 };
+  const a = p[3] != null ? parseFloat(p[3]) : 1;
+  const hex = '#' + [r, g, b].map((n) => (n || 0).toString(16).padStart(2, '0')).join('');
+  return { hex, a: Number.isFinite(a) ? a : 1 };
+}
+
+/** Combina #hex + alpha → stringa rgba(). */
+export function hexToRgba(hex, a) {
+  const m = String(hex).replace('#', '');
+  const r = parseInt(m.slice(0, 2), 16), g = parseInt(m.slice(2, 4), 16), b = parseInt(m.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${+Number(a).toFixed(3)})`;
 }
