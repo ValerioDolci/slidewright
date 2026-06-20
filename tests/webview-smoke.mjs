@@ -58,25 +58,27 @@ const mockAndChecker = `
     const fire = (data) => window.dispatchEvent(new MessageEvent('message', { data }));
     return {
       postMessage(msg) {
-        if (!msg || msg.type !== 'rpc') return;
-        window.__rpc.push(msg);
-        if (msg.method === 'ready') {
+        if (!msg) return;
+        // 'ready' è una NOTIFICA (come l'host reale): risponde con 'load'.
+        if (msg.type === 'ready') {
+          window.__ready = true;
           setTimeout(() => fire({ type: 'load', text: SAMPLE, name: 'prova.html' }), 10);
-          setTimeout(() => fire({ type: 'rpc-reply', id: msg.id, ok: true }), 12);
-        } else {
-          let result;
-          if (msg.method === 'save') result = 'saved';
-          else if (msg.method === 'saveAs') result = { status: 'saved', name: 'x.html' };
-          else if (msg.method === 'confirm') result = true;
-          else if (msg.method === 'llmChat') {
-            window.__llm = (window.__llm || 0) + 1;
-            result = window.__llm === 1
-              ? { content: '', toolCalls: [{ id: 't1', name: 'set_title', args: { title: 'Da agente' } }],
-                  raw: { tool_calls: [{ id: 't1', type: 'function', function: { name: 'set_title', arguments: JSON.stringify({ title: 'Da agente' }) } }] } }
-              : { content: 'Fatto agente.', toolCalls: [], raw: {} };
-          }
-          setTimeout(() => fire({ type: 'rpc-reply', id: msg.id, ok: true, result }), 5);
+          return;
         }
+        if (msg.type !== 'rpc') return;
+        window.__rpc.push(msg);
+        let result;
+        if (msg.method === 'save') result = 'saved';
+        else if (msg.method === 'saveAs') result = { status: 'saved', name: 'x.html' };
+        else if (msg.method === 'confirm') result = true;
+        else if (msg.method === 'llmChat') {
+          window.__llm = (window.__llm || 0) + 1;
+          result = window.__llm === 1
+            ? { content: '', toolCalls: [{ id: 't1', name: 'set_title', args: { title: 'Da agente' } }],
+                raw: { tool_calls: [{ id: 't1', type: 'function', function: { name: 'set_title', arguments: JSON.stringify({ title: 'Da agente' }) } }] } }
+            : { content: 'Fatto agente.', toolCalls: [], raw: {} };
+        }
+        setTimeout(() => fire({ type: 'rpc-reply', id: msg.id, ok: true, result }), 5);
       },
       getState() { return state; },
       setState(s) { state = s; },
@@ -104,7 +106,7 @@ const mockAndChecker = `
       const thumbs = document.querySelectorAll('.thumbs li');
       A(thumbs.length >= 2, 'sidebar: ' + thumbs.length + ' miniature (atteso 2)');
       A(!!document.querySelector('.chat'), 'chat: pannello montato');
-      A(window.__rpc.some((m) => m.method === 'ready'), 'handshake: webview ha inviato rpc ready');
+      A(window.__ready === true, 'handshake: webview ha notificato ready (type:ready) all\\'host');
 
       // --- ciclo documento: edit → sync (dirty) verso l'host ---
       window.__app._addText();           // aggiunge una casella "Testo" e committa

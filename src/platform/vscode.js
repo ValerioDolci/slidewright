@@ -93,8 +93,9 @@ export class VsCodePlatform {
   present(html) { return rpc('present', { html }); }
 
   // ---------- handshake con l'host ----------
-  /** Registra il caricamento del documento e segnala all'host che la webview è pronta. */
-  onLoad(cb) { _onLoad = cb; rpc('ready').catch(() => {}); }
+  /** Registra il caricamento del documento e segnala all'host che la webview è pronta.
+   *  'ready' è una NOTIFICA (non un RPC con reply): l'host risponde con 'load'. */
+  onLoad(cb) { _onLoad = cb; if (vscode) vscode.postMessage({ type: 'ready' }); }
   /** Documento cambiato fuori dall'editor (undo VS Code, modifica su disco). */
   onExternalChange(cb) { _onExternalChange = cb; }
 }

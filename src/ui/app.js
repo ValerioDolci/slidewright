@@ -566,6 +566,14 @@ export class App {
     this._loadDeckFromText(text, name || 'deck.html', true);
   }
 
+  /** Modifica esterna del documento (undo VS Code / altro editor / disco). Ricarica
+   *  solo se il testo differisce DAVVERO da quello che abbiamo già (evita reload
+   *  inutili su un'eco non filtrata). NB: ricaricare azzera la history in-app. */
+  applyExternalChange(text) {
+    try { if (text === buildDeckHtml(store.deck)) return; } catch (_) { /* fallback: ricarica */ }
+    this._loadDeckFromText(text, this._fileName || 'deck.html', true);
+  }
+
   _loadDeckFromText(text, name, bound = false) {
     if (!bound) this.platform.discardCurrent(); // drop/fallback: niente handle stantio del file precedente
     this._loading = true;
@@ -595,12 +603,18 @@ export class App {
     clearTimeout(this._saveT);
     this.commitStage(null); // cattura testo in corso di modifica
     this._setFileStatus('salvataggio…');
-    const r = await this.platform.save(buildDeckHtml(store.deck));
-    if (r === 'no-doc') return this._saveAs();
-    if (r === 'denied') { this._setFileStatus('permesso negato'); return; }
-    if (r === 'error') { this._setFileStatus('errore salvataggio'); return; }
-    this._dirty = false;
-    this._updateFileStatus();
+    // web ritorna uno stato ('saved'|'no-doc'|'denied'|'error'); l'host VS Code
+    // risolve 'saved' o RIGETTA → gestiamo entrambi (niente unhandled rejection).
+    try {
+      const r = await this.platform.save(buildDeckHtml(store.deck));
+      if (r === 'no-doc') return this._saveAs();
+      if (r === 'denied') { this._setFileStatus('permesso negato'); return; }
+      if (r === 'error') { this._setFileStatus('errore salvataggio'); return; }
+      this._dirty = false;
+      this._updateFileStatus();
+    } catch (_) {
+      this._setFileStatus('errore salvataggio'); // _dirty resta true
+    }
   }
 
   async _saveAs() {
@@ -621,7 +635,9 @@ export class App {
       // host con dirty/save nativi (VS Code): sincronizza il contenuto (→ dirty),
       // il salvataggio su disco lo fa l'utente con ⌘S (gestito dall'host).
       clearTimeout(this._saveT);
-      this._saveT = setTimeout(() => this.platform.syncDocument(buildDeckHtml(store.deck)), 600);
+      this._saveT = setTimeout(() => {
+        this.platform.syncDocument(buildDeckHtml(store.deck)).catch(() => { /* host non raggiungibile */ });
+      }, 600);
       return;
     }
     if (this.platform.canDirectSave()) { // autosave sul file aperto (debounce)

@@ -5,19 +5,18 @@
  * - Registra un Custom TEXT Editor su .html/.htm con priorità "option" (opt-in:
  *   l'editor di testo resta il default; si apre con "Apri con → Slide Studio").
  * - La UI è la stessa webview del guscio web (bundle in media/), che parla con
- *   l'host via postMessage. L'host fa il lavoro "vero" (fs, dialoghi, openExternal,
- *   e in futuro vscode.lm per la chat).
+ *   l'host via postMessage. L'host fa il lavoro "vero": carica/salva il documento
+ *   (dirty/undo nativi), dialoghi, openExternal (PDF/presenta), e la chat via
+ *   vscode.lm (Copilot) o openai-compat (fetch dall'host, niente CORS).
  *
- * Stato per-step:
- *   step 2 (questo): scaffold — carica il documento nella webview, RPC di base
- *                    (save/saveAs/confirm/exportHtml/present). PDF e LLM arrivano
- *                    agli step 5 e 4.
- *   step 3: ciclo documento completo (dirty/undo nativi, edit vs save su disco).
- *   step 4: chat via vscode.lm (+ fallback openai-compat dall'host, no CORS).
+ * Protocollo messaggi webview→host: {type:'ready'} (notifica) e
+ * {type:'rpc', id, method, args}. host→webview: {type:'load',…},
+ * {type:'external-change',…}, {type:'rpc-reply', id, ok, result, error}.
  */
 
 const vscode = require('vscode');
 const path = require('path');
+const crypto = require('crypto');
 
 const VIEW_TYPE = 'slidewright.deck';
 
@@ -53,15 +52,28 @@ class SlideStudioEditorProvider {
     const webview = panel.webview;
     const mediaRoot = vscode.Uri.joinPath(this.context.extensionUri, 'media');
     webview.options = { enableScripts: true, localResourceRoots: [mediaRoot] };
-    webview.html = await getHtmlForWebview(webview, mediaRoot);
 
     const post = (msg) => webview.postMessage(msg);
     const sendLoad = () =>
       post({ type: 'load', text: document.getText(), name: path.basename(document.uri.fsPath) });
 
-    // Anti-loop robusto: ignoriamo l'onDidChange se il testo coincide con
-    // l'ultimo che abbiamo spinto NOI dalla webview (niente eco verso la webview).
+    // Anti-eco: mentre applichiamo NOI una modifica (sync/save dalla webview) non
+    // dobbiamo rimandarla alla webview. Doppia difesa: un contatore di edit "nostri"
+    // in corso (regge sync+save concorrenti) + confronto col testo effettivo spinto
+    // (copre la normalizzazione EOL / files.insertFinalNewline).
+    let selfEditDepth = 0;
     let lastPushed = null;
+    const applyFromWebview = async (html, doSave) => {
+      selfEditDepth++;
+      try {
+        const ok = await replaceWholeDocument(document, html);
+        if (!ok) throw new Error('applyEdit rifiutato (documento cambiato?)');
+        if (doSave) await document.save();
+      } finally {
+        lastPushed = document.getText();
+        selfEditDepth--;
+      }
+    };
 
     const msgSub = webview.onDidReceiveMessage(async (m) => {
       if (!m) return;
@@ -70,10 +82,7 @@ class SlideStudioEditorProvider {
         let result;
         let error;
         try {
-          result = await this._handleRpc(m.method, m.args, {
-            document, webview,
-            markPushed: (html) => { lastPushed = html; },
-          });
+          result = await this._handleRpc(m.method, m.args, { document, webview, applyFromWebview });
         } catch (e) {
           error = e && e.message ? e.message : String(e);
         }
@@ -83,11 +92,15 @@ class SlideStudioEditorProvider {
 
     const changeSub = vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.document.uri.toString() !== document.uri.toString()) return;
-      if (document.getText() === lastPushed) return; // modifica nostra → niente eco
+      if (selfEditDepth > 0 || document.getText() === lastPushed) return; // modifica nostra → niente eco
       post({ type: 'external-change', text: document.getText() });
     });
 
     panel.onDidDispose(() => { msgSub.dispose(); changeSub.dispose(); });
+
+    // I listener sono pronti PRIMA di caricare l'HTML, così il 'ready' della
+    // webview non può arrivare prima che siamo in ascolto.
+    webview.html = await getHtmlForWebview(webview, mediaRoot);
   }
 
   /** Gestisce una chiamata RPC dalla webview. Ritorna un valore serializzabile. */
@@ -95,17 +108,14 @@ class SlideStudioEditorProvider {
     const { document } = ctx;
     switch (method) {
       case 'sync': {
-        // modifica continua dalla webview → aggiorna il documento (→ DIRTY),
-        // ma NON salva su disco: il salvataggio resta nativo (⌘S dell'utente).
-        ctx.markPushed(args.html);
-        await replaceWholeDocument(document, args.html);
+        // modifica continua dalla webview → documento DIRTY, NIENTE write su disco
+        // (il salvataggio resta nativo: ⌘S dell'utente).
+        await ctx.applyFromWebview(args.html, false);
         return 'synced';
       }
       case 'save': {
         // salvataggio esplicito (⌘S / pulsante): allinea il documento e scrive su disco.
-        ctx.markPushed(args.html);
-        await replaceWholeDocument(document, args.html);
-        await document.save();
+        await ctx.applyFromWebview(args.html, true);
         return 'saved';
       }
       case 'saveAs': {
@@ -114,7 +124,7 @@ class SlideStudioEditorProvider {
           filters: { 'Deck HTML': ['html', 'htm'] },
         });
         if (!uri) return { status: 'cancelled' };
-        await vscode.workspace.fs.writeFile(uri, Buffer.from(args.html, 'utf8'));
+        await vscode.workspace.fs.writeFile(uri, Buffer.from(String(args.html == null ? '' : args.html), 'utf8'));
         return { status: 'saved', name: path.basename(uri.fsPath) };
       }
       case 'confirm': {
@@ -127,7 +137,7 @@ class SlideStudioEditorProvider {
           filters: { 'HTML': ['html', 'htm'] },
         });
         if (!uri) return;
-        await vscode.workspace.fs.writeFile(uri, Buffer.from(args.html, 'utf8'));
+        await vscode.workspace.fs.writeFile(uri, Buffer.from(String(args.html == null ? '' : args.html), 'utf8'));
         vscode.window.showInformationMessage(`Esportato: ${path.basename(uri.fsPath)}`);
         return;
       }
@@ -156,18 +166,34 @@ class SlideStudioEditorProvider {
   }
 }
 
+/**
+ * Sostituisce il contenuto del documento con `text` facendo un edit MINIMALE:
+ * mantiene prefisso e suffisso comuni e rimpiazza solo la regione centrale. Così
+ * l'undo nativo resta granulare e cursore/selezione/fold non saltano a inizio file
+ * (un full-replace continuo li distruggerebbe). Ritorna l'esito di applyEdit.
+ */
 async function replaceWholeDocument(document, text) {
+  const old = document.getText();
+  if (old === text) return true;
+  let start = 0;
+  const max = Math.min(old.length, text.length);
+  while (start < max && old.charCodeAt(start) === text.charCodeAt(start)) start++;
+  let endOld = old.length;
+  let endNew = text.length;
+  while (endOld > start && endNew > start && old.charCodeAt(endOld - 1) === text.charCodeAt(endNew - 1)) {
+    endOld--; endNew--;
+  }
+  const range = new vscode.Range(document.positionAt(start), document.positionAt(endOld));
   const edit = new vscode.WorkspaceEdit();
-  const full = new vscode.Range(0, 0, document.lineCount, 0);
-  edit.replace(document.uri, full, text);
-  await vscode.workspace.applyEdit(edit);
+  edit.replace(document.uri, range, text.slice(start, endNew));
+  return vscode.workspace.applyEdit(edit);
 }
 
 async function writeTemp(context, name, content) {
   const dir = vscode.Uri.joinPath(context.globalStorageUri, 'tmp');
   await vscode.workspace.fs.createDirectory(dir);
   const uri = vscode.Uri.joinPath(dir, name);
-  await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf8'));
+  await vscode.workspace.fs.writeFile(uri, Buffer.from(String(content == null ? '' : content), 'utf8'));
   return uri;
 }
 
@@ -190,15 +216,18 @@ async function getHtmlForWebview(webview, mediaRoot) {
   // Lo stage è un iframe about:blank same-origin popolato via document.write →
   // serve 'self' in frame-src/child-src; il deck ha <style> inline e immagini
   // data: → 'unsafe-inline' su style e data: su img. Niente script nel deck.
+  // La chat passa dall'host (no fetch dal webview) → connect-src minimale.
+  // base-uri 'none' impedisce a un deck di dirottare i path relativi con <base>.
   const csp = [
     "default-src 'none'",
+    "base-uri 'none'",
     `img-src 'self' ${webview.cspSource} https: data: blob:`,
     `style-src 'self' ${webview.cspSource} 'unsafe-inline'`,
     `font-src 'self' ${webview.cspSource} data:`,
     `script-src 'nonce-${nonce}'`,
     `frame-src 'self' ${webview.cspSource} data: blob:`,
     `child-src 'self' ${webview.cspSource} data: blob:`,
-    `connect-src ${webview.cspSource} https:`,
+    `connect-src ${webview.cspSource}`,
   ].join('; ');
   html = html.replace('<head>', `<head>\n  <meta http-equiv="Content-Security-Policy" content="${csp}">`);
 
@@ -227,9 +256,10 @@ async function chatViaOpenAI({ connection, messages, tools }) {
         ...(connection.apiKey ? { Authorization: `Bearer ${connection.apiKey}` } : {}),
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(60000), // niente richieste appese all'infinito
     });
   } catch (e) {
-    throw new Error('Impossibile contattare il provider: ' + e.message);
+    throw new Error('Impossibile contattare il provider: ' + (e.name === 'TimeoutError' ? 'timeout' : e.message));
   }
   if (!res.ok) {
     let detail = '';
@@ -259,18 +289,18 @@ async function chatViaVscodeLm({ connection, messages, tools }) {
     options.toolMode = vscode.LanguageModelChatToolMode.Auto;
   }
   const token = new vscode.CancellationTokenSource().token;
-  let resp;
+  let content = '';
+  const toolCalls = [];
   try {
-    resp = await model.sendRequest(toLmMessages(messages), options, token);
+    const resp = await model.sendRequest(toLmMessages(messages), options, token);
+    // errori di rete/policy possono arrivare anche DURANTE lo stream → nel try.
+    for await (const part of resp.stream) {
+      if (part instanceof vscode.LanguageModelTextPart) content += part.value;
+      else if (part instanceof vscode.LanguageModelToolCallPart) toolCalls.push({ id: part.callId, name: part.name, args: part.input });
+    }
   } catch (e) {
     if (e instanceof vscode.LanguageModelError) throw new Error('Copilot: ' + e.message + (e.code ? ` (${e.code})` : ''));
     throw e;
-  }
-  let content = '';
-  const toolCalls = [];
-  for await (const part of resp.stream) {
-    if (part instanceof vscode.LanguageModelTextPart) content += part.value;
-    else if (part instanceof vscode.LanguageModelToolCallPart) toolCalls.push({ id: part.callId, name: part.name, args: part.input });
   }
   const raw = toolCalls.length
     ? { tool_calls: toolCalls.map((t) => ({ id: t.id, type: 'function', function: { name: t.name, arguments: JSON.stringify(t.args || {}) } })) }
@@ -278,25 +308,46 @@ async function chatViaVscodeLm({ connection, messages, tools }) {
   return { content, toolCalls, raw };
 }
 
-/** messages OpenAI → vscode.lm (niente system: confluisce in un messaggio utente). */
+/**
+ * messages OpenAI → vscode.lm. Accorgimenti per non farsi rifiutare dai backend:
+ * - niente role "system": il testo confluisce nel PRIMO messaggio user;
+ * - i tool-result della stessa assistant-turn sono BATCHati in UN solo messaggio
+ *   User (più LanguageModelToolResultPart) invece di tanti User consecutivi;
+ * - gli assistant vuoti (né testo né tool call) vengono saltati.
+ */
 function toLmMessages(messages) {
   const out = [];
+  let systemText = '';
+  let pendingResults = [];
+  const asText = (c) => (typeof c === 'string' ? c : JSON.stringify(c));
+  const flushResults = () => {
+    if (pendingResults.length) { out.push(vscode.LanguageModelChatMessage.User(pendingResults)); pendingResults = []; }
+  };
   for (const m of messages || []) {
-    if (m.role === 'system' || m.role === 'user') {
-      out.push(vscode.LanguageModelChatMessage.User(typeof m.content === 'string' ? m.content : JSON.stringify(m.content)));
+    if (m.role === 'tool') {
+      pendingResults.push(new vscode.LanguageModelToolResultPart(
+        m.tool_call_id, [new vscode.LanguageModelTextPart(String(m.content == null ? '' : m.content))],
+      ));
+      continue;
+    }
+    flushResults();
+    if (m.role === 'system') {
+      systemText += (systemText ? '\n\n' : '') + asText(m.content);
+    } else if (m.role === 'user') {
+      const text = asText(m.content);
+      out.push(vscode.LanguageModelChatMessage.User(systemText ? `${systemText}\n\n${text}` : text));
+      systemText = '';
     } else if (m.role === 'assistant') {
       const parts = [];
       if (m.content) parts.push(new vscode.LanguageModelTextPart(String(m.content)));
       for (const tc of m.tool_calls || []) {
         parts.push(new vscode.LanguageModelToolCallPart(tc.id, tc.function && tc.function.name, safeParse(tc.function && tc.function.arguments)));
       }
-      out.push(vscode.LanguageModelChatMessage.Assistant(parts.length ? parts : ''));
-    } else if (m.role === 'tool') {
-      out.push(vscode.LanguageModelChatMessage.User([
-        new vscode.LanguageModelToolResultPart(m.tool_call_id, [new vscode.LanguageModelTextPart(String(m.content == null ? '' : m.content))]),
-      ]));
+      if (parts.length) out.push(vscode.LanguageModelChatMessage.Assistant(parts));
     }
   }
+  flushResults();
+  if (systemText) out.push(vscode.LanguageModelChatMessage.User(systemText));
   return out;
 }
 
@@ -307,10 +358,7 @@ function safeParse(s) {
 }
 
 function getNonce() {
-  let s = '';
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  for (let i = 0; i < 32; i++) s += chars.charAt(Math.floor(Math.random() * chars.length));
-  return s;
+  return crypto.randomBytes(24).toString('base64').replace(/[^A-Za-z0-9]/g, '');
 }
 
 module.exports = { activate, deactivate };

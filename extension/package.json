@@ -6,9 +6,15 @@
   "publisher": "valeriodolci",
   "license": "SEE LICENSE IN LICENSE.txt",
   "repository": { "type": "git", "url": "https://github.com/ValerioDolci/slidewright" },
-  "engines": { "vscode": "^1.90.0" },
+  "engines": { "vscode": "^1.95.0" },
   "categories": ["Visualization", "Other"],
   "main": "./extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "L'editor funziona; in un workspace non attendibile evita la chat verso provider LLM esterni."
+    }
+  },
   "activationEvents": [],
   "contributes": {
     "customEditors": [

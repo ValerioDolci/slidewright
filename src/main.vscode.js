@@ -13,5 +13,5 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Il documento è fornito dall'host (Custom Editor) → carica al "load".
   platform.onLoad((m) => app.loadFromHost(m.text, m.name));
-  platform.onExternalChange((m) => app.loadFromHost(m.text, app._fileName));
+  platform.onExternalChange((m) => app.applyExternalChange(m.text));
 });
