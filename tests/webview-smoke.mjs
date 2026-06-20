@@ -68,6 +68,13 @@ const mockAndChecker = `
           if (msg.method === 'save') result = 'saved';
           else if (msg.method === 'saveAs') result = { status: 'saved', name: 'x.html' };
           else if (msg.method === 'confirm') result = true;
+          else if (msg.method === 'llmChat') {
+            window.__llm = (window.__llm || 0) + 1;
+            result = window.__llm === 1
+              ? { content: '', toolCalls: [{ id: 't1', name: 'set_title', args: { title: 'Da agente' } }],
+                  raw: { tool_calls: [{ id: 't1', type: 'function', function: { name: 'set_title', arguments: JSON.stringify({ title: 'Da agente' }) } }] } }
+              : { content: 'Fatto agente.', toolCalls: [], raw: {} };
+          }
           setTimeout(() => fire({ type: 'rpc-reply', id: msg.id, ok: true, result }), 5);
         }
       },
@@ -123,6 +130,19 @@ const mockAndChecker = `
       A(window.__rpc.some((m) => m.method === 'present'), 'present: rpc present inviato all\\'host');
       await window.__app._exportHtml();
       A(window.__rpc.some((m) => m.method === 'exportHtml'), 'export: rpc exportHtml inviato all\\'host');
+
+      // --- agente: chat → llmChat (tool + finale) → tool eseguito + risposta resa ---
+      window.__app.chat.open();
+      window.__app.chat.input.value = 'cambia il titolo';
+      window.__app.chat._submit();
+      await new Promise((r) => setTimeout(r, 500));
+      const llm = window.__rpc.filter((m) => m.method === 'llmChat');
+      A(llm.length >= 2, 'agente: 2 chiamate llmChat (tool + finale), ricevute ' + llm.length);
+      A(!!llm[0] && llm[0].args.connection && llm[0].args.connection.type === 'vscode-lm', 'agente: usa la connessione Copilot (vscode-lm)');
+      A(!!llm[0] && !('signal' in llm[0].args), 'agente: signal NON serializzato nel postMessage');
+      const ctext = (document.querySelector('.chat__msgs') || {}).textContent || '';
+      A(/set_title/.test(ctext), 'agente: step del tool mostrato in chat');
+      A(/Fatto agente/.test(ctext), 'agente: risposta finale resa in chat');
     } catch (e) {
       fail++; log.push('EXCEPTION ' + e.message);
     }

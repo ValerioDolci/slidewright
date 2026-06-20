@@ -11,6 +11,8 @@
  */
 
 export const PROVIDER_PRESETS = [
+  // Solo nell'estensione VS Code (gestito dall'host via vscode.lm): niente baseUrl/chiave.
+  { name: 'Copilot (VS Code)', type: 'vscode-lm', baseUrl: '', model: 'gpt-4o' },
   { name: 'Mistral',        type: 'openai', baseUrl: 'https://api.mistral.ai/v1',     model: 'mistral-large-latest' },
   { name: 'OpenRouter',     type: 'openai', baseUrl: 'https://openrouter.ai/api/v1',  model: 'openai/gpt-4o-mini' },
   { name: 'Ollama (locale)', type: 'openai', baseUrl: 'http://localhost:11434/v1',    model: 'llama3.1' },

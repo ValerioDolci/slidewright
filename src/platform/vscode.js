@@ -48,7 +48,7 @@ export class VsCodePlatform {
   constructor() {
     // Nel Custom Editor c'è SEMPRE un documento legato (il file aperto):
     // il salvataggio passa dall'host (documento VS Code → dirty/undo nativi).
-    this.capabilities = { directSave: true, nativeSave: true };
+    this.capabilities = { directSave: true, nativeSave: true, lmCopilot: true };
     this._bound = true;
     this.storage = {
       get: (key) => (vscode ? (vscode.getState()?.[key] ?? null) : null),
@@ -74,7 +74,8 @@ export class VsCodePlatform {
   confirm(message) { return rpc('confirm', { message }); }
 
   // ---------- llm ----------
-  llmChat(args) { return rpc('llmChat', args); }
+  // NB: niente `signal` nel postMessage (AbortSignal non è clonabile structured-clone).
+  llmChat({ connection, messages, tools }) { return rpc('llmChat', { connection, messages, tools }); }
 
   // ---------- export / present ----------
   exportHtml(html, name) { return rpc('exportHtml', { html, name }); }

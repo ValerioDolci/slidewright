@@ -15,10 +15,12 @@
  * @property {(key:string, value:string)=>void} set
  *
  * @typedef {Object} Platform
- * @property {{directSave:boolean, nativeSave:boolean}} capabilities  Cosa sa fare l'host.
+ * @property {{directSave:boolean, nativeSave:boolean, lmCopilot:boolean}} capabilities  Cosa sa fare l'host.
  *   `nativeSave`: l'host possiede dirty/undo/salvataggio (VS Code) → l'App non
  *   mostra il proprio stato file e, a ogni modifica, sincronizza il contenuto col
  *   documento dell'host invece di autosalvare su disco.
+ *   `lmCopilot`: l'host offre un modello di linguaggio nativo (VS Code → Copilot
+ *   via vscode.lm) → la chat propone "Copilot (VS Code)" senza configurare chiavi.
  * @property {()=>boolean} canDirectSave          C'è un documento legato su cui salvare al volo?
  * @property {()=>Promise<{text:string,name:string}|null>} openDeck  Apre un deck (null = annullato).
  * @property {(html:string)=>Promise<any>} syncDocument  Sincronizza il contenuto con l'host (host nativeSave → marca dirty, NON salva su disco). Su web equivale a save.

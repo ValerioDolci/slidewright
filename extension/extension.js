@@ -144,8 +144,9 @@ class SlideStudioEditorProvider {
         return;
       }
       case 'llmChat': {
-        // step 4: vscode.lm (Copilot) + fallback openai-compat dall'host.
-        throw new Error('Chat agente disponibile dallo step 4 (vscode.lm).');
+        const conn = args.connection || {};
+        // Copilot via vscode.lm (no chiave, no CORS) oppure openai-compat dall'host.
+        return conn.type === 'vscode-lm' ? await chatViaVscodeLm(args) : await chatViaOpenAI(args);
       }
       case 'openDeck':
         return null; // nel Custom Editor il documento è già fornito via "load".
@@ -202,6 +203,107 @@ async function getHtmlForWebview(webview, mediaRoot) {
   html = html.replace('<head>', `<head>\n  <meta http-equiv="Content-Security-Policy" content="${csp}">`);
 
   return html;
+}
+
+// ---------- LLM ----------
+//
+// L'agente (core/agent.js) parla "OpenAI": messages con role system/user/
+// assistant(.tool_calls)/tool e ritorno { content, toolCalls:[{id,name,args}], raw }.
+// Qui sotto: una traduzione 1:1 verso vscode.lm (Copilot) e un client openai-compat
+// (fetch dall'extension host → niente CORS). La forma OpenAI resta la lingua franca,
+// così l'agente non cambia per provider.
+
+async function chatViaOpenAI({ connection, messages, tools }) {
+  if (!connection || !connection.baseUrl) throw new Error('Connessione LLM senza Base URL.');
+  const url = connection.baseUrl.replace(/\/$/, '') + '/chat/completions';
+  const body = { model: connection.model, messages, temperature: 0.2, stream: false };
+  if (tools && tools.length) { body.tools = tools; body.tool_choice = 'auto'; }
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(connection.apiKey ? { Authorization: `Bearer ${connection.apiKey}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    throw new Error('Impossibile contattare il provider: ' + e.message);
+  }
+  if (!res.ok) {
+    let detail = '';
+    try { detail = (await res.json())?.error?.message || ''; } catch (_) { try { detail = await res.text(); } catch (_) { /* noop */ } }
+    if (res.status === 401) throw new Error('Chiave API non valida (401).');
+    throw new Error(`Errore provider ${res.status}: ${detail || res.statusText}`);
+  }
+  const data = await res.json();
+  const msg = (data.choices && data.choices[0] && data.choices[0].message) || {};
+  const toolCalls = (msg.tool_calls || []).map((tc) => ({
+    id: tc.id, name: tc.function && tc.function.name, args: safeParse(tc.function && tc.function.arguments),
+  }));
+  return { content: msg.content || '', toolCalls, raw: msg };
+}
+
+async function chatViaVscodeLm({ connection, messages, tools }) {
+  const family = connection && connection.model;
+  let models = await vscode.lm.selectChatModels(family ? { vendor: 'copilot', family } : { vendor: 'copilot' });
+  if (!models || !models.length) models = await vscode.lm.selectChatModels({ vendor: 'copilot' });
+  if (!models || !models.length) {
+    throw new Error('Copilot non disponibile: installa/accedi a GitHub Copilot in VS Code, oppure configura un provider in ⚙.');
+  }
+  const model = models[0];
+  const options = {};
+  if (tools && tools.length) {
+    options.tools = tools.map((t) => ({ name: t.function.name, description: t.function.description, inputSchema: t.function.parameters }));
+    options.toolMode = vscode.LanguageModelChatToolMode.Auto;
+  }
+  const token = new vscode.CancellationTokenSource().token;
+  let resp;
+  try {
+    resp = await model.sendRequest(toLmMessages(messages), options, token);
+  } catch (e) {
+    if (e instanceof vscode.LanguageModelError) throw new Error('Copilot: ' + e.message + (e.code ? ` (${e.code})` : ''));
+    throw e;
+  }
+  let content = '';
+  const toolCalls = [];
+  for await (const part of resp.stream) {
+    if (part instanceof vscode.LanguageModelTextPart) content += part.value;
+    else if (part instanceof vscode.LanguageModelToolCallPart) toolCalls.push({ id: part.callId, name: part.name, args: part.input });
+  }
+  const raw = toolCalls.length
+    ? { tool_calls: toolCalls.map((t) => ({ id: t.id, type: 'function', function: { name: t.name, arguments: JSON.stringify(t.args || {}) } })) }
+    : {};
+  return { content, toolCalls, raw };
+}
+
+/** messages OpenAI → vscode.lm (niente system: confluisce in un messaggio utente). */
+function toLmMessages(messages) {
+  const out = [];
+  for (const m of messages || []) {
+    if (m.role === 'system' || m.role === 'user') {
+      out.push(vscode.LanguageModelChatMessage.User(typeof m.content === 'string' ? m.content : JSON.stringify(m.content)));
+    } else if (m.role === 'assistant') {
+      const parts = [];
+      if (m.content) parts.push(new vscode.LanguageModelTextPart(String(m.content)));
+      for (const tc of m.tool_calls || []) {
+        parts.push(new vscode.LanguageModelToolCallPart(tc.id, tc.function && tc.function.name, safeParse(tc.function && tc.function.arguments)));
+      }
+      out.push(vscode.LanguageModelChatMessage.Assistant(parts.length ? parts : ''));
+    } else if (m.role === 'tool') {
+      out.push(vscode.LanguageModelChatMessage.User([
+        new vscode.LanguageModelToolResultPart(m.tool_call_id, [new vscode.LanguageModelTextPart(String(m.content == null ? '' : m.content))]),
+      ]));
+    }
+  }
+  return out;
+}
+
+function safeParse(s) {
+  if (s == null) return {};
+  if (typeof s === 'object') return s;
+  try { return JSON.parse(s); } catch (_) { return {}; }
 }
 
 function getNonce() {

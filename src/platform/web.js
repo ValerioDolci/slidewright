@@ -17,7 +17,7 @@ import { downloadText } from '../util/dom.js';
 
 export class WebPlatform {
   constructor() {
-    this.capabilities = { directSave: fsSupported, nativeSave: false };
+    this.capabilities = { directSave: fsSupported, nativeSave: false, lmCopilot: false };
     this._handle = null;
     this.storage = {
       get(key) { try { return localStorage.getItem(key); } catch (_) { return null; } },

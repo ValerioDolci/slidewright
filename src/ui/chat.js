@@ -13,9 +13,14 @@ import { uid } from '../util/id.js';
 const LS_CONN = 'ss-llm-connections';
 const LS_ACTIVE = 'ss-llm-active';
 
+// Connessione "virtuale" Copilot: presente solo nell'estensione VS Code (host
+// con lmCopilot), non persistita, gestita dall'host via vscode.lm.
+const COPILOT_CONN = { id: 'vscode-copilot', name: 'Copilot (VS Code)', type: 'vscode-lm', model: '' };
+
 export class ChatPanel {
-  constructor({ storage }) {
+  constructor({ storage, lmCopilot = false }) {
     this.storage = storage; // kv persistente fornito dal platform (web/vscode)
+    this.lmCopilot = lmCopilot;
     this.onSend = () => {};
     this.busy = false;
     this._loadConnections();
@@ -24,12 +29,18 @@ export class ChatPanel {
 
   // ---------- connessioni ----------
   _loadConnections() {
-    try { this.connections = JSON.parse(this.storage.get(LS_CONN)) || []; } catch (_) { this.connections = []; }
+    let saved;
+    try { saved = JSON.parse(this.storage.get(LS_CONN)) || []; } catch (_) { saved = []; }
+    saved = saved.filter((c) => c.id !== COPILOT_CONN.id); // la virtuale non si persiste
+    // Nell'estensione Copilot è disponibile senza configurazione → in cima e default.
+    this.connections = this.lmCopilot ? [COPILOT_CONN, ...saved] : saved;
     this.activeId = this.storage.get(LS_ACTIVE) || null;
-    if (!this.activeId && this.connections[0]) this.activeId = this.connections[0].id;
+    if (!this.connections.some((c) => c.id === this.activeId)) {
+      this.activeId = this.connections[0] ? this.connections[0].id : null;
+    }
   }
   _saveConnections() {
-    this.storage.set(LS_CONN, JSON.stringify(this.connections));
+    this.storage.set(LS_CONN, JSON.stringify(this.connections.filter((c) => c.id !== COPILOT_CONN.id)));
     this.storage.set(LS_ACTIVE, this.activeId || '');
   }
   getActiveConnection() {
@@ -117,9 +128,10 @@ export class ChatPanel {
       : { id: null, name: '', type: 'openai', baseUrl: '', model: '', apiKey: '' };
     const draft = { ...editing };
 
+    const presets = this.lmCopilot ? PROVIDER_PRESETS : PROVIDER_PRESETS.filter((p) => p.type !== 'vscode-lm');
     const presetSel = el('select', { class: 'insp__ctl' }, [
       el('option', { value: '', text: '— preset —' }),
-      ...PROVIDER_PRESETS.map((p) => el('option', { value: p.name, text: p.name })),
+      ...presets.map((p) => el('option', { value: p.name, text: p.name })),
     ]);
     presetSel.addEventListener('change', () => {
       const p = PROVIDER_PRESETS.find((x) => x.name === presetSel.value);
@@ -135,14 +147,21 @@ export class ChatPanel {
 
     const list = el('div', { class: 'chat-settings__list' },
       this.connections.length
-        ? this.connections.map((c) => el('div', { class: `chat-settings__row ${c.id === this.activeId ? 'is-active' : ''}` }, [
-            el('label', { class: 'chat-settings__pick' }, [
-              el('input', { type: 'radio', name: 'active', checked: c.id === this.activeId ? 'checked' : null, onChange: () => { this.activeId = c.id; this._saveConnections(); this._refreshConnLabel(); } }),
-              el('span', { text: `${c.name} · ${c.model}` }),
-            ]),
-            el('button', { class: 'btn btn--sm', text: 'Modifica', onClick: () => this._openSettings(c.id) }),
-            el('button', { class: 'btn btn--sm btn--danger', text: 'Elimina', onClick: () => { this.connections = this.connections.filter((x) => x.id !== c.id); if (this.activeId === c.id) this.activeId = this.connections[0]?.id || null; this._saveConnections(); this._refreshConnLabel(); this._openSettings(); } }),
-          ]))
+        ? this.connections.map((c) => {
+            const isVirtual = c.type === 'vscode-lm' && c.id === COPILOT_CONN.id;
+            return el('div', { class: `chat-settings__row ${c.id === this.activeId ? 'is-active' : ''}` }, [
+              el('label', { class: 'chat-settings__pick' }, [
+                el('input', { type: 'radio', name: 'active', checked: c.id === this.activeId ? 'checked' : null, onChange: () => { this.activeId = c.id; this._saveConnections(); this._refreshConnLabel(); } }),
+                el('span', { text: c.model ? `${c.name} · ${c.model}` : c.name }),
+              ]),
+              isVirtual
+                ? el('span', { class: 'chat-settings__note', text: 'nativo · Copilot' })
+                : el('button', { class: 'btn btn--sm', text: 'Modifica', onClick: () => this._openSettings(c.id) }),
+              isVirtual
+                ? null
+                : el('button', { class: 'btn btn--sm btn--danger', text: 'Elimina', onClick: () => { this.connections = this.connections.filter((x) => x.id !== c.id); if (this.activeId === c.id) this.activeId = this.connections[0]?.id || null; this._saveConnections(); this._refreshConnLabel(); this._openSettings(); } }),
+            ]);
+          })
         : [el('p', { class: 'inspector__empty', text: 'Nessuna connessione ancora.' })]
     );
 
@@ -151,8 +170,8 @@ export class ChatPanel {
       draft.baseUrl = fUrl.value.trim();
       draft.model = fModel.value.trim();
       draft.apiKey = fKey.value;
-      draft.type = 'openai';
-      if (!draft.baseUrl || !draft.model) { alert('Servono almeno Base URL e Modello.'); return; }
+      if (draft.type !== 'vscode-lm') draft.type = 'openai';
+      if (draft.type !== 'vscode-lm' && (!draft.baseUrl || !draft.model)) { alert('Servono almeno Base URL e Modello.'); return; }
       if (draft.id) {
         const i = this.connections.findIndex((c) => c.id === draft.id);
         this.connections[i] = draft;

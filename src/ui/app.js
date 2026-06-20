@@ -38,7 +38,7 @@ export class App {
     this.sidebar = new Sidebar($('#thumbs'));
     this.inspector = new Inspector($('#inspector-title'), $('#inspector-body'));
     this.selection = new SelectionLayer(this.stage);
-    this.chat = new ChatPanel({ storage: platform.storage });
+    this.chat = new ChatPanel({ storage: platform.storage, lmCopilot: platform.capabilities.lmCopilot });
     this.chat.onSend = (text) => this._runAgent(text);
     this._agentHistory = [];
 
