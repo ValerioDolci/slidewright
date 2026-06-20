@@ -5,7 +5,11 @@
 > (2) il bivio strategico **tool browser** vs **estensione VS Code** (per usare Copilot).
 > Non è una decisione presa: è materiale per decidere sui fatti.
 >
-> Stato: PROGETTAZIONE / da decidere. Nessun codice di questa parte ancora scritto.
+> Stato: **IMPLEMENTATO** (2026-06-20) sul branch `feat/vscode-extension`. Questo
+> documento resta come razionale/decisione; lo stato corrente e i comandi sono in
+> `CLAUDE.md` (sez. "RISTRUTTURATO PER ESTENSIONE VS CODE") e nel `README.md`.
+> Direzione presa: **B con host-adapter** (web + estensione conviventi), chat **3C**
+> (Copilot via `vscode.lm` + openai-compat dall'host).
 
 ---
 

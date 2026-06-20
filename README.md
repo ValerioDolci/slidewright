@@ -20,6 +20,21 @@ Apri `dist/index.html` con un doppio click: l'editor gira da `file://`.
 
 `npm run build` produce invece l'output multi-file in `dist/` (per debug).
 
+### Estensione VS Code (slidewright)
+
+Lo stesso editor gira anche come estensione VS Code (stesso `core`/`ui`, guscio
+diverso). Apri un `.html` con **"Apri con… → Slide Studio"** (opt-in: l'editor di
+testo resta il default). Salvataggio = documento VS Code (dirty/⌘S/undo nativi);
+la chat agente usa **Copilot via `vscode.lm`** (senza chiavi né CORS) con fallback
+ai provider openai-compat chiamati dall'extension host.
+
+```bash
+npm run build:vscode          # bundla la webview in extension/media/
+cd extension
+npx @vscode/vsce package --no-dependencies   # → slidewright-<versione>.vsix
+code --install-extension slidewright-0.1.0.vsix
+```
+
 ## Cosa fa
 
 | Livello | Funzione |
@@ -37,12 +52,16 @@ Apri `dist/index.html` con un doppio click: l'editor gira da `file://`.
 ## Test
 
 ```bash
-bash tests/run.sh    # regressione moduli core (serve python3 + Chrome, niente dep npm)
+bash tests/run.sh          # regressione moduli core (python3 + Chrome, niente dep npm)
+bash tests/run-webview.sh  # smoke del guscio VS Code: simula la webview (CSP reale +
+                           # mock acquireVsCodeApi) e valida rendering + ciclo documento
 ```
 
 ## Architettura
 
-Web vanilla (ES modules), nessun framework. Build con Vite + `vite-plugin-singlefile`.
+Web vanilla (ES modules), nessun framework. **Lo stesso `core`/`ui` gira in due
+gusci** grazie a un *platform layer* (host adapter): `web` (browser) e `vscode`
+(webview dell'estensione). Build con Vite + `vite-plugin-singlefile`.
 
 ```
 src/
@@ -52,14 +71,22 @@ src/
     import.js       deck.html → modello
     export-html.js  modello → HTML pulito (strip attributi editor + runtime nav)
     export-pdf.js   modello → stampa @page 16:9 (PDF dal browser)
+    sanitize.js · assets.js · agent.js · llm.js     sicurezza, pool immagini, agente
+  platform/
+    index.js        Contratto Platform (host adapter): file/export/llm/storage/confirm
+    web.js          Impl browser: File System Access, fetch LLM, window.print, localStorage
+    vscode.js       Impl webview: RPC postMessage all'extension host; storage = stato webview
   ui/
-    app.js          Orchestratore: cabla tutto, azioni toolbar, scorciatoie
+    app.js          Orchestratore (host-agnostico: usa solo `platform`)
+    layout.js       Markup workspace CONDIVISO web+webview (niente duplicazione)
     stage.js        Canvas <iframe> (isola gli stili del deck), scala, editing testo
-    sidebar.js      Miniature sortable
-    selection.js    Maniglie move/resize (overlay in coord. logiche)
-    inspector.js    Pannello proprietà
+    sidebar.js · selection.js · inspector.js · chat.js
   util/             dom, id
   styles/           tokens.css + editor.css ("Atelier drafting-cockpit")
+apps/
+  vscode/index.html Entry della webview (shell che monta `layout` + platform vscode)
+extension/          Estensione VS Code (Node): Custom Editor + vscode.lm + messaging
+  extension.js · package.json (manifest) · media/ (bundle webview, generato)
 ```
 
 ### Scelte di progetto
