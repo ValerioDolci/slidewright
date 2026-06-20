@@ -6,3 +6,4 @@ dist/
 # Build artifacts dell'estensione VS Code
 extension/media/
 *.vsix
+tests/_webview-harness.gen.html

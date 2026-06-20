@@ -51,9 +51,16 @@ export class App {
     this._initTheme();
 
     store.subscribe((reason) => this._onStore(reason));
-    window.addEventListener('beforeunload', (e) => {
-      if (this._dirty) { e.preventDefault(); e.returnValue = ''; }
-    });
+    // Con host "nativeSave" (VS Code) dirty/save sono nativi: niente beforeunload
+    // né stato file nostro; nascondiamo i controlli ridondanti.
+    if (this.platform.capabilities.nativeSave) {
+      const fs = $('#file-status'); if (fs) fs.hidden = true;
+      const sb = document.querySelector('[data-action="save"]'); if (sb) sb.hidden = true;
+    } else {
+      window.addEventListener('beforeunload', (e) => {
+        if (this._dirty) { e.preventDefault(); e.returnValue = ''; }
+      });
+    }
     this.renderAll();
     this._updateFileStatus();
     this._hint(this.platform.capabilities.directSave
@@ -610,6 +617,13 @@ export class App {
   _markDirty() {
     this._dirty = true;
     this._updateFileStatus();
+    if (this.platform.capabilities.nativeSave) {
+      // host con dirty/save nativi (VS Code): sincronizza il contenuto (→ dirty),
+      // il salvataggio su disco lo fa l'utente con ⌘S (gestito dall'host).
+      clearTimeout(this._saveT);
+      this._saveT = setTimeout(() => this.platform.syncDocument(buildDeckHtml(store.deck)), 600);
+      return;
+    }
     if (this.platform.canDirectSave()) { // autosave sul file aperto (debounce)
       clearTimeout(this._saveT);
       this._saveT = setTimeout(() => this._save(), 1200);
@@ -617,6 +631,7 @@ export class App {
   }
 
   _updateFileStatus() {
+    if (this.platform.capabilities.nativeSave) return; // dirty/stato file li mostra l'host (VS Code)
     const el = $('#file-status');
     if (el) {
       const name = this._fileName || (this._dirty ? '(non salvato)' : '');

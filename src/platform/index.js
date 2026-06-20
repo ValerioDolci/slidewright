@@ -15,9 +15,13 @@
  * @property {(key:string, value:string)=>void} set
  *
  * @typedef {Object} Platform
- * @property {{directSave:boolean}} capabilities  Cosa sa fare l'host.
+ * @property {{directSave:boolean, nativeSave:boolean}} capabilities  Cosa sa fare l'host.
+ *   `nativeSave`: l'host possiede dirty/undo/salvataggio (VS Code) → l'App non
+ *   mostra il proprio stato file e, a ogni modifica, sincronizza il contenuto col
+ *   documento dell'host invece di autosalvare su disco.
  * @property {()=>boolean} canDirectSave          C'è un documento legato su cui salvare al volo?
  * @property {()=>Promise<{text:string,name:string}|null>} openDeck  Apre un deck (null = annullato).
+ * @property {(html:string)=>Promise<any>} syncDocument  Sincronizza il contenuto con l'host (host nativeSave → marca dirty, NON salva su disco). Su web equivale a save.
  * @property {(html:string)=>Promise<'saved'|'no-doc'|'denied'|'error'>} save  Salva sul documento corrente.
  * @property {(html:string, suggestedName:string)=>Promise<{status:'saved'|'cancelled'|'error', name?:string}>} saveAs
  * @property {()=>void} discardCurrent            Scollega il documento corrente (Nuovo deck).

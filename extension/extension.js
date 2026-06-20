@@ -59,8 +59,9 @@ class SlideStudioEditorProvider {
     const sendLoad = () =>
       post({ type: 'load', text: document.getText(), name: path.basename(document.uri.fsPath) });
 
-    // Evita il loop "webview → edit documento → onDidChange → ricarico webview".
-    let applyingFromWebview = false;
+    // Anti-loop robusto: ignoriamo l'onDidChange se il testo coincide con
+    // l'ultimo che abbiamo spinto NOI dalla webview (niente eco verso la webview).
+    let lastPushed = null;
 
     const msgSub = webview.onDidReceiveMessage(async (m) => {
       if (!m) return;
@@ -69,7 +70,10 @@ class SlideStudioEditorProvider {
         let result;
         let error;
         try {
-          result = await this._handleRpc(m.method, m.args, { document, webview, set: (v) => { applyingFromWebview = v; } });
+          result = await this._handleRpc(m.method, m.args, {
+            document, webview,
+            markPushed: (html) => { lastPushed = html; },
+          });
         } catch (e) {
           error = e && e.message ? e.message : String(e);
         }
@@ -79,7 +83,7 @@ class SlideStudioEditorProvider {
 
     const changeSub = vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.document.uri.toString() !== document.uri.toString()) return;
-      if (applyingFromWebview) return; // la modifica viene da noi → niente eco
+      if (document.getText() === lastPushed) return; // modifica nostra → niente eco
       post({ type: 'external-change', text: document.getText() });
     });
 
@@ -90,16 +94,18 @@ class SlideStudioEditorProvider {
   async _handleRpc(method, args, ctx) {
     const { document } = ctx;
     switch (method) {
+      case 'sync': {
+        // modifica continua dalla webview → aggiorna il documento (→ DIRTY),
+        // ma NON salva su disco: il salvataggio resta nativo (⌘S dell'utente).
+        ctx.markPushed(args.html);
+        await replaceWholeDocument(document, args.html);
+        return 'synced';
+      }
       case 'save': {
-        // step 2: scrive l'HTML nel documento e lo salva su disco.
-        // (step 3 distinguerà "edit → dirty" da "salva su disco".)
-        ctx.set(true);
-        try {
-          await replaceWholeDocument(document, args.html);
-          await document.save();
-        } finally {
-          ctx.set(false);
-        }
+        // salvataggio esplicito (⌘S / pulsante): allinea il documento e scrive su disco.
+        ctx.markPushed(args.html);
+        await replaceWholeDocument(document, args.html);
+        await document.save();
         return 'saved';
       }
       case 'saveAs': {

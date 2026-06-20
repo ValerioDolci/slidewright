@@ -17,7 +17,7 @@ import { downloadText } from '../util/dom.js';
 
 export class WebPlatform {
   constructor() {
-    this.capabilities = { directSave: fsSupported };
+    this.capabilities = { directSave: fsSupported, nativeSave: false };
     this._handle = null;
     this.storage = {
       get(key) { try { return localStorage.getItem(key); } catch (_) { return null; } },
@@ -50,6 +50,9 @@ export class WebPlatform {
       inp.click();
     });
   }
+
+  // Su web non c'è un host con dirty proprio → sincronizzare = salvare.
+  syncDocument(html) { return this.save(html); }
 
   async save(html) {
     if (!this._handle) return 'no-doc';

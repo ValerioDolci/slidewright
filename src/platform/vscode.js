@@ -46,7 +46,7 @@ export class VsCodePlatform {
   constructor() {
     // Nel Custom Editor c'è SEMPRE un documento legato (il file aperto):
     // il salvataggio passa dall'host (documento VS Code → dirty/undo nativi).
-    this.capabilities = { directSave: true };
+    this.capabilities = { directSave: true, nativeSave: true };
     this._bound = true;
     this.storage = {
       get: (key) => (vscode ? (vscode.getState()?.[key] ?? null) : null),
@@ -64,6 +64,8 @@ export class VsCodePlatform {
   // ---------- file ----------
   // Nel Custom Editor il documento arriva via 'load' (vedi onLoad), non con un picker.
   openDeck() { return rpc('openDeck'); }
+  // sync = aggiorna il documento VS Code (→ dirty), NON salva su disco.
+  syncDocument(html) { return rpc('sync', { html }); }
   save(html) { return rpc('save', { html }); }
   saveAs(html, name) { return rpc('saveAs', { html, name }); }
   discardCurrent() { this._bound = false; }
