@@ -17,6 +17,7 @@
   <script type="module">
     import { parseDeck } from '/src/core/import.js';
     import { buildDeckHtml, cleanSlideHtml } from '/src/core/export-html.js';
+    import { buildPrintHtml } from '/src/core/export-pdf.js';
     import { externalize, inline, describeAssetsForLlm, collectAssetIds, pruneAssets } from '/src/core/assets.js';
     import { createDeck, cloneDeck, welcomeDeck } from '/src/core/model.js';
     import { rgbaParts, hexToRgba } from '/src/ui/inspector.js';
@@ -62,6 +63,12 @@
       A(!/1920px/.test(leaky.styleCss) && !/display:\s*none/.test(leaky.styleCss), 'slide-style: lo <style> della slide NON entra nel CSS globale');
       A(/color:#fff/.test(leaky.styleCss), 'slide-style: lo <style> globale (head) resta globale');
       A(/<style/i.test(leaky.slides[1].html) && /1920px/.test(leaky.slides[1].html), 'slide-style: lo <style> resta nella sua slide (isolato)');
+
+      // ---- PDF: ogni pagina ha .active (deck con .slide{display:none}/.active non esce vuoto) ----
+      const dnDeck = parseDeck('<html><head><style>.slide{display:none}.slide.active{display:flex}</style></head><body><div class="deck">' +
+        '<section class="slide"><h1>A</h1></section><section class="slide"><h1>B</h1></section></div></body></html>');
+      const printHtml = buildPrintHtml(dnDeck, { pageBackground: '' });
+      A((printHtml.match(/class="slide active/g) || []).length === 2, 'pdf: ogni pagina ha la classe active (slide display:none non escono vuote)');
 
       // ---- handler inline (on*) / javascript: ----
       A(!/onerror/i.test(deck.slides[0].html), 'sicurezza: attributo on* (onerror) rimosso in import');

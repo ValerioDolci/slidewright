@@ -34,7 +34,10 @@ export function buildPrintHtml(deck, { pageBackground = '' } = {}) {
   if ((deck.mode || 'deck') === 'doc') return buildDocPrintHtml(deck);
   const pages = deck.slides
     .map((s) => {
-      const cls = ['slide', ...(s.classes || [])].filter(Boolean).join(' ');
+      // 'active' su OGNI pagina: i deck che mostrano/nascondono con .slide{display:none}
+      // + .slide.active{display:flex} altrimenti stamperebbero pagine vuote (qui ogni
+      // pagina è una slide a sé, tutte vanno rese visibili). Innocuo per i deck a opacità.
+      const cls = ['slide', 'active', ...(s.classes || [])].filter(Boolean).join(' ');
       return `<div class="ss-page"><section class="${cls}">${cleanSlideHtml(s.html)}</section></div>`;
     })
     .join('\n');
