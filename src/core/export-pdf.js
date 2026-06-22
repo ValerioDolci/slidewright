@@ -16,7 +16,7 @@
  * Suggerire all'utente di attivare "Grafica di sfondo" nel dialogo di stampa.
  */
 
-import { cleanSlideHtml } from './export-html.js';
+import { cleanSlideHtml, CREDIT } from './export-html.js';
 import { CANVAS } from './model.js';
 
 const PRINT_CSS_BASE = `
@@ -54,7 +54,7 @@ export function buildPrintHtml(deck, { pageBackground = '' } = {}) {
     ? `html,body{background:none !important;}\n.ss-page{${pageBackground}}`
     : '';
 
-  return `<!DOCTYPE html><html lang="${deck.meta?.lang || 'it'}"><head>
+  return `<!DOCTYPE html>${CREDIT}<html lang="${deck.meta?.lang || 'it'}"><head>
 <meta charset="UTF-8" /><title>${(deck.meta?.title || 'Deck')} — PDF</title>
 <style>${deck.styleCss || ''}</style>
 <style>${PRINT_CSS_BASE}\n${bgCss}</style>
@@ -64,7 +64,7 @@ export function buildPrintHtml(deck, { pageBackground = '' } = {}) {
 /** Stampa in modalità documento: pagine A4 con impaginazione naturale del browser. */
 function buildDocPrintHtml(deck) {
   const content = cleanSlideHtml(deck.slides[0]?.html || '');
-  return `<!DOCTYPE html><html lang="${deck.meta?.lang || 'it'}"><head>
+  return `<!DOCTYPE html>${CREDIT}<html lang="${deck.meta?.lang || 'it'}"><head>
 <meta charset="UTF-8" /><title>${(deck.meta?.title || 'Documento')} — PDF</title>
 <style>${deck.styleCss || ''}</style>
 <style>@page{margin:16mm}html,body{margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact;}</style>

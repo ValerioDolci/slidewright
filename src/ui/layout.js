@@ -19,7 +19,7 @@ export const WORKSPACE_HTML = `
   <header class="topbar" data-reveal>
     <div class="topbar__brand">
       <span class="topbar__mark">◳</span>
-      <span class="topbar__name">Slide&nbsp;Studio</span>
+      <span class="topbar__name">Slidewright</span>
     </div>
 
     <div class="topbar__group" role="group" aria-label="File">
@@ -81,6 +81,7 @@ export const WORKSPACE_HTML = `
           </ul>
         </div>
       </div>
+      <p class="help__about" data-i18n-skip>Slidewright · di Valerio Dolci · <a class="help__link" href="https://github.com/ValerioDolci/slidewright" target="_blank" rel="noopener">github.com/ValerioDolci/slidewright</a></p>
     </div>
   </div>
 

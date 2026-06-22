@@ -1,8 +1,8 @@
 {
   "name": "slidewright",
-  "displayName": "Slide Studio",
+  "displayName": "Slidewright",
   "description": "Editor visuale per deck di slide HTML: riordino, editing testo e grafico, export, agente LLM (Copilot via vscode.lm).",
-  "version": "0.6.4",
+  "version": "0.7.0",
   "publisher": "valeriodolci",
   "license": "SEE LICENSE IN LICENSE.txt",
   "repository": { "type": "git", "url": "https://github.com/ValerioDolci/slidewright" },
@@ -20,7 +20,7 @@
     "customEditors": [
       {
         "viewType": "slidewright.deck",
-        "displayName": "Slide Studio",
+        "displayName": "Slidewright",
         "selector": [
           { "filenamePattern": "*.html" },
           { "filenamePattern": "*.htm" }
@@ -31,7 +31,7 @@
     "commands": [
       {
         "command": "slidewright.openWith",
-        "title": "Slide Studio: apri il file HTML nell'editor visuale"
+        "title": "Slidewright: apri il file HTML nell'editor visuale"
       }
     ],
     "menus": {

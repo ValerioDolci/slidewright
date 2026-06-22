@@ -1,4 +1,4 @@
-/* Slide Studio — editor chrome. "Atelier drafting-cockpit". */
+/* Slidewright — editor chrome. "Atelier drafting-cockpit". */
 
 * { box-sizing: border-box; }
 html, body { height: 100%; }
@@ -335,6 +335,12 @@ button { font-family: inherit; }
   color: var(--fg); background: var(--ink-900); border: 1px solid var(--line);
   border-radius: 3px; padding: 1px 5px; margin: 0 1px;
 }
+.help__about {
+  margin: 18px 0 0; padding-top: 14px; border-top: 1px solid var(--line-soft);
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-mut); text-align: center;
+}
+.help__about a { color: var(--amber-bright); text-decoration: none; }
+.help__about a:hover { text-decoration: underline; }
 
 /* ---------------- chat agente ---------------- */
 .chat {

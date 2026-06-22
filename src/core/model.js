@@ -70,7 +70,7 @@ export function emptySlideHtml(title = 'Nuova slide') {
   return `<div class="header"><span class="badge">Sezione</span></div>
 <div class="content"><h2>${escapeHtml(title)}</h2>
 <p class="muted">Doppio click per modificare il testo. Aggiungi elementi dalla toolbar.</p></div>
-<div class="footer"><span>Slide Studio</span><span></span></div>`;
+<div class="footer"><span>Slidewright</span><span></span></div>`;
 }
 
 export function titleSlideHtml(title = 'Titolo della presentazione', subtitle = 'Sottotitolo') {
@@ -87,7 +87,7 @@ export function createDeck({ title = 'Nuovo deck', lang = 'it', styleCss = DEFAU
     canvas: { ...CANVAS },
     styleCss,
     slides: [
-      { ...createSlide(titleSlideHtml(title, 'Creato con Slide Studio')) },
+      { ...createSlide(titleSlideHtml(title, 'Creato con Slidewright')) },
       { ...createSlide() },
     ],
   };
@@ -97,11 +97,11 @@ export function createDeck({ title = 'Nuovo deck', lang = 'it', styleCss = DEFAU
  * non editabile). Sono slide normali: editabili, eliminabili, sostituite appena
  * apri un tuo file o premi "Nuovo". Usano le classi del tema di default. */
 const WELCOME_SLIDE_1 = `<div class="header">
-  <span class="badge">◳ Slide Studio</span>
+  <span class="badge">◳ Slidewright</span>
   <span class="badge">Editor di deck HTML</span>
 </div>
 <div class="content" style="align-content:center;text-align:center">
-  <h1 style="font-size:60px">Benvenuto in Slide Studio</h1>
+  <h1 style="font-size:60px">Benvenuto in Slidewright</h1>
   <p class="muted" style="font-size:24px;max-width:820px;margin:0 auto">Apri un deck <b style="color:var(--text)">.html</b>, modificalo come in un mini-PowerPoint ed esporta di nuovo in HTML o PDF. Tutto in locale, niente cloud.</p>
   <div class="pill-row" style="justify-content:center;margin-top:22px">
     <span class="pill">Trascina qui un file .html per aprirlo</span>
@@ -141,11 +141,11 @@ const WELCOME_SLIDE_2 = `<div class="header"><span class="badge">Come si usa</sp
 <div class="footer"><span>Pronto? Trascina un deck .html oppure premi “Nuovo”.</span><span>2 / 2</span></div>`;
 
 const WELCOME_EN_1 = `<div class="header">
-  <span class="badge">◳ Slide Studio</span>
+  <span class="badge">◳ Slidewright</span>
   <span class="badge">HTML deck editor</span>
 </div>
 <div class="content" style="align-content:center;text-align:center">
-  <h1 style="font-size:60px">Welcome to Slide Studio</h1>
+  <h1 style="font-size:60px">Welcome to Slidewright</h1>
   <p class="muted" style="font-size:24px;max-width:820px;margin:0 auto">Open an <b style="color:var(--text)">.html</b> deck, edit it like a mini-PowerPoint and export back to HTML or PDF. All local, no cloud.</p>
   <div class="pill-row" style="justify-content:center;margin-top:22px">
     <span class="pill">Drag an .html file here to open it</span>
@@ -189,7 +189,7 @@ const WELCOME_EN_2 = `<div class="header"><span class="badge">How it works</span
 export function welcomeDeck(lang = 'it') {
   const en = lang === 'en';
   return {
-    meta: { title: en ? 'Welcome — Slide Studio' : 'Benvenuto — Slide Studio', lang: en ? 'en' : 'it' },
+    meta: { title: en ? 'Welcome — Slidewright' : 'Benvenuto — Slidewright', lang: en ? 'en' : 'it' },
     mode: 'deck',
     canvas: { ...CANVAS },
     styleCss: DEFAULT_STYLE_CSS,

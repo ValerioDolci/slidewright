@@ -1,4 +1,4 @@
-# Slide Studio
+# Slidewright
 
 Editor visuale **locale** per deck di slide HTML — riordino, editing testo,
 editing grafico (mini-PowerPoint) ed export **HTML + PDF** nello stesso formato 16:9.
@@ -23,7 +23,7 @@ Apri `dist/index.html` con un doppio click: l'editor gira da `file://`.
 ### Estensione VS Code (slidewright)
 
 Lo stesso editor gira anche come estensione VS Code (stesso `core`/`ui`, guscio
-diverso). Apri un `.html` con **"Apri con… → Slide Studio"** (opt-in: l'editor di
+diverso). Apri un `.html` con **"Apri con… → Slidewright"** (opt-in: l'editor di
 testo resta il default). Salvataggio = documento VS Code (dirty/⌘S/undo nativi);
 la chat agente usa **Copilot via `vscode.lm`** (senza chiavi né CORS) con fallback
 ai provider openai-compat chiamati dall'extension host.

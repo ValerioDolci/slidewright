@@ -14,6 +14,9 @@ import { EDITOR_ATTR } from '../util/id.js';
 import { inline } from './assets.js';
 import { sanitizeFragment } from './sanitize.js';
 
+/** Credito discreto cucito in ogni export (commento: invisibile a chi guarda il deck). */
+export const CREDIT = '<!-- Made with Slidewright · di Valerio Dolci · github.com/ValerioDolci/slidewright -->';
+
 /** Rimuove dagli elementi gli attributi interni dell'editor + reinserisce gli asset. */
 export function cleanSlideHtml(html) {
   const tpl = document.createElement('template');
@@ -79,6 +82,7 @@ export function buildDeckHtml(deck) {
     .join('\n');
 
   return `<!DOCTYPE html>
+${CREDIT}
 <html lang="${escapeAttr(lang)}">
 <head>
   <meta charset="UTF-8" />
@@ -110,6 +114,7 @@ function buildDocHtml(deck) {
   const title = deck.meta?.title || 'Documento';
   const content = cleanSlideHtml(deck.slides[0]?.html || '');
   return `<!DOCTYPE html>
+${CREDIT}
 <html lang="${escapeAttr(lang)}">
 <head>
   <meta charset="UTF-8" />

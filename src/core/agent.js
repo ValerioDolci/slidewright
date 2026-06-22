@@ -80,7 +80,7 @@ export const TOOLS = [
 
 function systemPrompt(ctx) {
   return [
-    'Sei l\'assistente di Slide Studio, un editor di deck di slide HTML.',
+    'Sei l\'assistente di Slidewright, un editor di deck di slide HTML.',
     `Modifichi il documento SOLO tramite i tool forniti. Canvas logico ${ctx.canvas.w}×${ctx.canvas.h} (16:9).`,
     `Modalità documento: "${ctx.mode}". Titolo: "${ctx.title}". Slide totali: ${ctx.slideTitles.length}. Slide corrente: indice ${ctx.currentIndex}.`,
     'Indice slide (indice: titolo):',

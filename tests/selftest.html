@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8" />
-  <title>Slide Studio — self test</title>
+  <title>Slidewright — self test</title>
   <style>
     body { font-family: ui-monospace, Menlo, monospace; background: #14130f; color: #efe9dd; margin: 0; padding: 16px; }
     #result { white-space: pre-wrap; font-size: 13px; line-height: 1.55; }
@@ -11,7 +11,7 @@
   </style>
 </head>
 <body>
-  <h1>Slide Studio — self test (regressione moduli core)</h1>
+  <h1>Slidewright — self test (regressione moduli core)</h1>
   <div id="result">running…</div>
 
   <script type="module">
@@ -80,6 +80,9 @@
       A(idDeck.slides[0].elId === 'slide-9' && !idDeck.slides[1].elId, 'id: elId catturato da #slide-9 (vuoto se assente)');
       A(buildDeckHtml(idDeck).includes('id="slide-9"'), 'id: export HTML preserva l\'id');
       A(buildPrintHtml(idDeck, { pageBackground: '' }).includes('id="slide-9"'), 'id: export PDF preserva l\'id');
+
+      // ---- credito cucito negli export (neutro, sempre presente) ----
+      A(/Slidewright/.test(buildDeckHtml(idDeck)) && /Slidewright/.test(buildPrintHtml(idDeck, { pageBackground: '' })), 'credito: HTML e PDF esportati contengono il credito Slidewright');
       A(!parseDeck('<html><body><div class="deck"><section class="slide" id="a b"><h1>X</h1></section></div></body></html>').slides[0].elId, 'id: id non valido (spazi) scartato');
 
       // ---- handler inline (on*) / javascript: ----
@@ -138,12 +141,12 @@
       // ---- deck di benvenuto (slide iniziali = istruzioni) ----
       const wd = welcomeDeck();
       A(wd.slides.length === 2 && wd.mode === 'deck', `benvenuto: deck di 2 slide (${wd.slides.length})`);
-      A(/Benvenuto in Slide Studio/i.test(wd.slides[0].html), 'benvenuto IT: slide 1 = intro');
+      A(/Benvenuto in Slidewright/i.test(wd.slides[0].html), 'benvenuto IT: slide 1 = intro');
       A(/Tab|⌥-click|Doppio click/i.test(wd.slides[1].html), 'benvenuto IT: slide 2 = istruzioni gesti');
       A(wd.slides[0].id !== createDeck().slides[0].id, 'benvenuto: id slide univoci');
       A(wd.meta.lang === 'it', 'benvenuto IT: meta.lang it');
       const wde = welcomeDeck('en');
-      A(/Welcome to Slide Studio/i.test(wde.slides[0].html), 'benvenuto EN: slide 1 in inglese');
+      A(/Welcome to Slidewright/i.test(wde.slides[0].html), 'benvenuto EN: slide 1 in inglese');
       A(/Tab|Double-click|⌥-click/i.test(wde.slides[1].html), 'benvenuto EN: slide 2 istruzioni EN');
       A(wde.meta.lang === 'en' && !/Benvenuto/i.test(wde.slides[0].html), 'benvenuto EN: lingua en, niente italiano');
 
