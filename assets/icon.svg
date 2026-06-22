@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000">
+  <defs>
+    <linearGradient id="ppt" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e25c2c"/><stop offset="1" stop-color="#bd3a1a"/></linearGradient>
+    <linearGradient id="slate" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3d4a58"/><stop offset="1" stop-color="#262e38"/></linearGradient>
+    <linearGradient id="flap" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fde3d3"/><stop offset="1" stop-color="#efaa80"/></linearGradient>
+  </defs>
+  <rect width="1000" height="1000" rx="220" fill="url(#slate)"/>
+  <text x="838" y="892" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-weight="700" font-size="150" fill="#f3ab52">&lt;/&gt;</text>
+  <path d="M220,0 H780 A220,220 0 0 1 1000,220 V520 L520,1000 H220 A220,220 0 0 1 0,780 V220 A220,220 0 0 1 220,0 Z" fill="url(#ppt)"/>
+  <text x="405" y="600" text-anchor="middle" font-family="Futura,'Avenir Next',Arial,sans-serif" font-weight="800" font-size="560" fill="#fff">P</text>
+  <path d="M1000,520 L520,1000 L520,520 Z" fill="url(#flap)"/>
+  <path d="M1000,520 L520,1000" stroke="#a23617" stroke-width="6" opacity="0.45"/>
+</svg>

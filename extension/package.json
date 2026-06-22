@@ -4,6 +4,7 @@
   "description": "Editor visuale per deck di slide HTML: riordino, editing testo e grafico, export, agente LLM (Copilot via vscode.lm).",
   "version": "0.8.3",
   "publisher": "valeriodolci",
+  "icon": "icon.png",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/ValerioDolci/slidewright" },
   "engines": { "vscode": "^1.95.0" },

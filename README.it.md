@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/icon.png" alt="Slidewright" width="140" /></p>
+
 # Slidewright
 
 [English](README.md) · **Italiano**
