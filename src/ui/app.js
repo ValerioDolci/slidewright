@@ -201,12 +201,16 @@ export class App {
       // ⌘S salva anche mentre si edita il testo
       if (meta && e.key.toLowerCase() === 's') { e.preventDefault(); this._save(); return; }
       if (this.stage.isEditing()) return; // lascia lavorare il contenteditable
-      // Tab / ⇧Tab: cicla gli elementi della slide (solo se non sei in un campo
-      // della chrome — inspector/chat — dove Tab deve restare navigazione normale).
+      // Se il focus è in un campo della chrome (inspector/chat) lascia la tastiera al
+      // campo: niente scorciatoie su elementi. Senza questo, mentre digiti un valore
+      // nell'inspector, Backspace cancellerebbe l'elemento e le frecce lo sposterebbero.
+      // NB: cliccando la slide il focus va sull'iframe (non un input) → scorciatoie attive.
+      const ae = document.activeElement;
+      if (ae && (ae.matches('input,textarea,select') || ae.isContentEditable ||
+                 (ae.closest && ae.closest('.inspector,.chat,.chat-settings')))) return;
+      // Tab / ⇧Tab: cicla gli elementi della slide.
       if (e.key === 'Tab' && store.selectedEid) {
-        const ae = document.activeElement;
-        const inField = ae && (ae.matches('input,textarea,select,[contenteditable="true"]') || ae.closest('.chat,.inspector,.chat-settings'));
-        if (!inField) { e.preventDefault(); this._cycleSelection(e.shiftKey ? -1 : 1); return; }
+        e.preventDefault(); this._cycleSelection(e.shiftKey ? -1 : 1); return;
       }
       if (meta && e.key.toLowerCase() === 'z') {
         e.preventDefault();
