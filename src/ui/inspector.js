@@ -31,6 +31,7 @@ export class Inspector {
     this.deleteElement = () => {};
     this.selectParent = () => {};
     this.makeFree = () => {};
+    this.eyedrop = () => {}; // (cb) => attiva la pipetta sullo stage, poi cb(elemento)
   }
 
   clear() {
@@ -92,14 +93,14 @@ export class Inspector {
       this._row('Font', this._select(FONTS, cs.fontFamily, (v, c) => setStyle('fontFamily', v, c))),
       this._row('Dim.', this._number(parseInt(cs.fontSize, 10) || 16, 6, 200, (v, c) => setStyle('fontSize', `${v}px`, c))),
       this._row('Peso', this._select(WEIGHTS, cs.fontWeight, (v, c) => setStyle('fontWeight', v, c))),
-      this._row('Colore', this._color(cs.color, (v, c) => setStyle('color', v, c))),
+      this._row('Colore', this._color(cs.color, (v, c) => setStyle('color', v, c), { pickProp: 'color' })),
       this._row('Allinea', this._segmented(ALIGNS, cs.textAlign, (v) => setStyle('textAlign', v, true))),
     ]));
 
     // ---- Riempimento & bordo ----
     const borderW = parseInt(cs.borderTopWidth, 10) || 0;
     body.append(this._group('Riempimento e bordo', [
-      this._row('Sfondo', this._color(cs.backgroundColor, (v, c) => setStyle('backgroundColor', v, c), { allowTransparent: true, fallbackHex: rgbToHex(cs.color) || '#ffffff' })),
+      this._row('Sfondo', this._color(cs.backgroundColor, (v, c) => setStyle('backgroundColor', v, c), { allowTransparent: true, fallbackHex: rgbToHex(cs.color) || '#ffffff', pickProp: 'backgroundColor' })),
       // Bordo (colore): se non c'è ancora un bordo visibile, ne crea uno (solid, 2px)
       this._row('Bordo', this._color(cs.borderTopColor, (v, c) => {
         elm.style.borderColor = v;
@@ -108,7 +109,7 @@ export class Inspector {
           if (!parseInt(elm.style.borderWidth, 10)) elm.style.borderWidth = '2px';
         }
         this.liveRefresh(); if (c) this.commit();
-      }, { allowTransparent: true, fallbackHex: rgbToHex(cs.color) || '#888888' })),
+      }, { allowTransparent: true, fallbackHex: rgbToHex(cs.color) || '#888888', pickProp: 'borderTopColor' })),
       this._row('Spessore', this._number(borderW, 0, 40, (v, c) => {
         elm.style.borderWidth = `${v}px`;
         elm.style.borderStyle = v > 0 ? 'solid' : 'none';
@@ -202,6 +203,7 @@ export class Inspector {
   _color(current, cb, opts = {}) {
     const allowTransparent = opts === true || !!opts.allowTransparent;
     const fallbackHex = (opts && opts.fallbackHex) || null;
+    const pickProp = (opts && opts.pickProp) || null; // proprietà CSS letta dalla pipetta
     const { hex, a } = rgbaParts(current);
     // su elemento TRASPARENTE lo swatch parte da un colore visibile (non nero): così
     // muovere l'opacità o scegliere un colore producono sempre un risultato visibile.
@@ -215,6 +217,12 @@ export class Inspector {
     const emit = (commit) => cb(value(), commit);
     // scegliere un colore su un elemento trasparente (alpha 0) deve renderlo visibile
     const pick = (commit) => { if (alpha === 0) { alpha = 1; if (rng) rng.value = '100'; } emit(commit); };
+    // applica un rgba arbitrario (incolla / pipetta): aggiorna swatch + opacità + commit
+    const applyColor = (rgba) => {
+      const p = rgbaParts(rgba);
+      sw.value = p.hex; alpha = p.a; if (rng) rng.value = String(Math.round(p.a * 100));
+      cb(rgba, true);
+    };
     sw.addEventListener('input', () => pick(false));
     sw.addEventListener('change', () => pick(true));
     wrap.append(sw);
@@ -235,13 +243,20 @@ export class Inspector {
     }));
     wrap.append(el('button', {
       class: 'insp__cbtn', title: 'Incolla colore', text: '⤓',
-      onClick: () => {
-        if (!colorClip) return;
-        const p = rgbaParts(colorClip);
-        sw.value = p.hex; alpha = p.a; if (rng) rng.value = String(Math.round(p.a * 100));
-        cb(colorClip, true);
-      },
+      onClick: () => { if (colorClip) applyColor(colorClip); },
     }));
+    // pipetta: preleva il colore (con la trasparenza) dallo STILE di un elemento cliccato
+    // — la pipetta di sistema campiona il pixel composito e perde l'alpha, questa no.
+    if (pickProp) {
+      wrap.append(el('button', {
+        class: 'insp__cbtn', title: 'Pipetta: preleva il colore (con trasparenza) da un elemento',
+        html: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M20.71 5.63l-2.34-2.34a1 1 0 0 0-1.41 0l-3.12 3.12-1.4-1.4-1.42 1.41 1.06 1.06L4 16.16V20h3.84l7.58-7.58 1.06 1.06 1.41-1.42-1.4-1.4 3.12-3.12a1 1 0 0 0 0-1.49zM6.99 18H6v-.99l7.07-7.07.99.99L6.99 18z"/></svg>',
+        onClick: () => this.eyedrop((target) => {
+          const w = target.ownerDocument.defaultView;
+          applyColor(w.getComputedStyle(target)[pickProp]);
+        }),
+      }));
+    }
     if (allowTransparent) {
       wrap.append(el('button', {
         class: 'insp__clear', title: 'Trasparente', text: '∅',

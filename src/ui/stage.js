@@ -58,6 +58,7 @@ export class Stage {
     this.onDrop = () => {};      // file droppato SOPRA la slide → instradato all'App (con dataTransfer)
     this.onDragFileOver = () => {};
     this._editingEid = null;
+    this._picking = null;        // callback "pipetta": prossimo click su un elemento → cb(el)
     this.selectedEid = null;     // eid selezionato (lo aggiorna l'App via onSelect)
 
     this.canvas.style.width = `${CANVAS.w}px`;
@@ -201,6 +202,14 @@ export class Stage {
     // sotto a quelli sovrapposti). Le coord. dell'evento sono già nello spazio
     // logico dell'iframe (1280×720), quindi si passano dirette a pickAt.
     doc.addEventListener('click', (e) => {
+      // modalità pipetta: il click NON seleziona, preleva il colore dall'elemento
+      if (this._picking) {
+        e.preventDefault(); e.stopPropagation();
+        const t = e.target.closest(`[${EDITOR_ATTR}]`);
+        const cb = this._picking; this._endPick();
+        if (t) cb(t); // click sul vuoto → annulla soltanto
+        return;
+      }
       const a = e.target.closest('a');
       if (a) e.preventDefault(); // niente navigazione interna al deck
       // click dentro al testo in editing → lascia muovere il caret, non riselezionare
@@ -222,7 +231,10 @@ export class Stage {
     // (Canc, frecce, ⌘Z…) arrivano qui e non al window del padre. Li inoltro
     // all'App con lo stesso handler (durante l'editing testo non interferisce:
     // l'handler dell'App esce subito se isEditing()).
-    doc.addEventListener('keydown', (e) => this.onKey(e));
+    doc.addEventListener('keydown', (e) => {
+      if (this._picking) { if (e.key === 'Escape') this._endPick(); e.preventDefault(); return; }
+      this.onKey(e);
+    });
 
     // Drag&drop di un file SOPRA la slide: l'iframe è un contesto a sé, quindi il
     // preventDefault sul window del padre NON lo copre → senza questo il browser
@@ -236,6 +248,20 @@ export class Stage {
       e.preventDefault();
       this.onDrop(e.dataTransfer);
     });
+  }
+
+  /** Pipetta: il prossimo click su un elemento della slide chiama cb(elemento) invece
+   *  di selezionarlo. Disabilito i pointer-event dell'overlay così il click arriva
+   *  all'iframe anche sopra l'elemento già selezionato (il suo box li cattura). */
+  startPick(cb) {
+    this._picking = cb;
+    if (this.doc) this.doc.body.style.cursor = 'crosshair';
+    if (this.overlay) this.overlay.style.pointerEvents = 'none';
+  }
+  _endPick() {
+    this._picking = null;
+    if (this.doc) this.doc.body.style.cursor = '';
+    if (this.overlay) this.overlay.style.pointerEvents = '';
   }
 
   /** Converte coordinate finestra-editor → coordinate logiche dell'iframe (per i

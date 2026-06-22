@@ -297,9 +297,11 @@ button { font-family: inherit; }
 }
 .insp__clear:hover { color: var(--fg); border-color: var(--amber); }
 .insp__cbtn {
-  width: 24px; height: 26px; flex: none; border: 1px solid var(--line); border-radius: var(--radius);
+  width: 22px; height: 26px; flex: none; border: 1px solid var(--line); border-radius: var(--radius);
   background: var(--ink-900); color: var(--fg-mut); cursor: pointer; font-size: 13px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center; padding: 0;
 }
+.insp__cbtn svg { display: block; }
 .insp__cbtn:hover { color: var(--fg); border-color: var(--amber); }
 .insp__seg, .insp__btns { display: flex; gap: 5px; }
 .insp__btns { flex-wrap: wrap; }

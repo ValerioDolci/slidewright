@@ -166,6 +166,7 @@ const EN = {
   'Trasparente': 'Transparent',
   'Copia colore (con trasparenza)': 'Copy colour (with transparency)',
   'Incolla colore': 'Paste colour',
+  'Pipetta: preleva il colore (con trasparenza) da un elemento': 'Eyedropper: pick a colour (with transparency) from an element',
 
   // ---- chat / agente ----
   "Chiedi all'agente di modificare le slide…": 'Ask the agent to edit the slides…',

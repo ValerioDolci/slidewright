@@ -292,6 +292,19 @@
       A(capDst[capDst.length - 1] === 'rgba(0, 128, 255, 0.4)', `color: incolla preserva la trasparenza (${capDst[capDst.length-1]})`);
       A(dst.querySelector('.insp__swatch').value === '#0080ff', 'color: incolla aggiorna lo swatch');
 
+      // ---- inspector _color: pipetta legge il colore (con alpha) dallo STILE elemento ----
+      const tgt = document.createElement('div');
+      tgt.style.backgroundColor = 'rgba(10, 20, 30, 0.5)';
+      document.body.appendChild(tgt);
+      const capPick = [];
+      insp.eyedrop = (cb) => cb(tgt); // simula il click-pipetta sull'elemento
+      const pc = insp._color('rgba(0,0,0,0)', (v) => capPick.push(v), { allowTransparent: true, pickProp: 'backgroundColor' });
+      const dropBtn = pc.querySelectorAll('.insp__cbtn')[2]; // [copia, incolla, pipetta]
+      dropBtn.click();
+      A(capPick[capPick.length - 1] === 'rgba(10, 20, 30, 0.5)', `color: pipetta preleva il colore+alpha dallo stile (${capPick[capPick.length-1]})`);
+      A(pc.querySelector('.insp__swatch').value === '#0a141e', 'color: pipetta aggiorna lo swatch');
+      tgt.remove();
+
       // ---- iframe sandbox: handler inline NON eseguito (difesa in profondità) ----
       const sbx = document.createElement('iframe');
       sbx.setAttribute('sandbox', 'allow-same-origin'); // come lo stage: DOM accessibile, script OFF

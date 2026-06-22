@@ -31,7 +31,9 @@ OUT="$("$CHROME" --headless=new --disable-gpu --no-sandbox \
 LINE="$(printf '%s' "$OUT" | grep -o 'RISULTATO: [0-9]* pass, [0-9]* fail' | tail -1 || true)"
 echo "${LINE:-nessun risultato (timeout?)}"
 
-if printf '%s' "$OUT" | grep -q 'RISULTATO: [0-9]* pass, 0 fail'; then
+# Nota: niente `grep -q` su $OUT qui — chiude la pipe in anticipo e con `pipefail`
+# il printf riceve SIGPIPE (exit 141) → falso negativo. Controllo la $LINE catturata.
+if [[ "$LINE" == *", 0 fail" ]]; then
   echo "✅ OK"; exit 0
 else
   echo "❌ FALLITO"

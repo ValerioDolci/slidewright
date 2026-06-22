@@ -145,6 +145,7 @@ export class App {
     this.inspector.duplicateElement = (eid) => this._duplicateElement(eid);
     this.inspector.deleteElement = (eid) => this._deleteElement(eid);
     this.inspector.makeFree = (elm) => this.stage.makeFree(elm);
+    this.inspector.eyedrop = (cb) => this.stage.startPick(cb);
     this.inspector.selectParent = (eid) => {
       const p = this.stage.getElement(eid)?.parentElement;
       if (!p || p.classList.contains('ss-root')) return;
