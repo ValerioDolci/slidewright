@@ -15,6 +15,8 @@ const FONTS = [
   ['"Avenir Next","Gill Sans",sans-serif', 'Avenir / Gill'],
   ['Georgia,"Times New Roman",serif', 'Georgia'],
 ];
+// clipboard colore condivisa fra i controlli (preserva la trasparenza)
+let colorClip = null;
 const WEIGHTS = [['', '—'], ['400', 'Regular'], ['600', 'Semibold'], ['700', 'Bold'], ['800', 'Black']];
 const ALIGNS = [['left', '⯇'], ['center', '≡'], ['right', '⯈'], ['justify', '☰']];
 
@@ -97,7 +99,7 @@ export class Inspector {
     // ---- Riempimento & bordo ----
     const borderW = parseInt(cs.borderTopWidth, 10) || 0;
     body.append(this._group('Riempimento e bordo', [
-      this._row('Sfondo', this._color(cs.backgroundColor, (v, c) => setStyle('backgroundColor', v, c), true)),
+      this._row('Sfondo', this._color(cs.backgroundColor, (v, c) => setStyle('backgroundColor', v, c), { allowTransparent: true, fallbackHex: rgbToHex(cs.color) || '#ffffff' })),
       // Bordo (colore): se non c'è ancora un bordo visibile, ne crea uno (solid, 2px)
       this._row('Bordo', this._color(cs.borderTopColor, (v, c) => {
         elm.style.borderColor = v;
@@ -106,7 +108,7 @@ export class Inspector {
           if (!parseInt(elm.style.borderWidth, 10)) elm.style.borderWidth = '2px';
         }
         this.liveRefresh(); if (c) this.commit();
-      }, true)),
+      }, { allowTransparent: true, fallbackHex: rgbToHex(cs.color) || '#888888' })),
       this._row('Spessore', this._number(borderW, 0, 40, (v, c) => {
         elm.style.borderWidth = `${v}px`;
         elm.style.borderStyle = v > 0 ? 'solid' : 'none';
@@ -197,16 +199,21 @@ export class Inspector {
     i.addEventListener('change', (e) => cb(Number(e.target.value), true));
     return i;
   }
-  _color(current, cb, allowTransparent = false) {
+  _color(current, cb, opts = {}) {
+    const allowTransparent = opts === true || !!opts.allowTransparent;
+    const fallbackHex = (opts && opts.fallbackHex) || null;
     const { hex, a } = rgbaParts(current);
+    // su elemento TRASPARENTE lo swatch parte da un colore visibile (non nero): così
+    // muovere l'opacità o scegliere un colore producono sempre un risultato visibile.
+    const startHex = (a === 0 && fallbackHex) ? fallbackHex : hex;
     const wrap = el('div', { class: 'insp__color' });
-    const sw = el('input', { type: 'color', class: 'insp__swatch', value: hex });
+    const sw = el('input', { type: 'color', class: 'insp__swatch', value: startHex });
     let alpha = a;
     let rng = null;
     // alpha pieno → emette hex (compatibile con qualunque proprietà); altrimenti rgba
-    const emit = (commit) => cb(alpha >= 1 ? sw.value : hexToRgba(sw.value, alpha), commit);
-    // scegliere un colore su un elemento TRASPARENTE (alpha 0) deve renderlo visibile,
-    // altrimenti il colore viene applicato ma resta invisibile ("non funziona").
+    const value = () => (alpha >= 1 ? sw.value : hexToRgba(sw.value, alpha));
+    const emit = (commit) => cb(value(), commit);
+    // scegliere un colore su un elemento trasparente (alpha 0) deve renderlo visibile
     const pick = (commit) => { if (alpha === 0) { alpha = 1; if (rng) rng.value = '100'; } emit(commit); };
     sw.addEventListener('input', () => pick(false));
     sw.addEventListener('change', () => pick(true));
@@ -220,6 +227,22 @@ export class Inspector {
       rng.addEventListener('input', () => { alpha = Number(rng.value) / 100; emit(false); });
       rng.addEventListener('change', () => { alpha = Number(rng.value) / 100; emit(true); });
       wrap.append(rng);
+    }
+    // copia / incolla colore (con la trasparenza). Clipboard condivisa fra i controlli.
+    wrap.append(el('button', {
+      class: 'insp__cbtn', title: 'Copia colore (con trasparenza)', text: '⧉',
+      onClick: () => { colorClip = value(); },
+    }));
+    wrap.append(el('button', {
+      class: 'insp__cbtn', title: 'Incolla colore', text: '⤓',
+      onClick: () => {
+        if (!colorClip) return;
+        const p = rgbaParts(colorClip);
+        sw.value = p.hex; alpha = p.a; if (rng) rng.value = String(Math.round(p.a * 100));
+        cb(colorClip, true);
+      },
+    }));
+    if (allowTransparent) {
       wrap.append(el('button', {
         class: 'insp__clear', title: 'Trasparente', text: '∅',
         onClick: () => { alpha = 0; if (rng) rng.value = '0'; cb('transparent', true); },

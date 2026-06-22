@@ -20,7 +20,7 @@
     import { buildPrintHtml } from '/src/core/export-pdf.js';
     import { externalize, inline, describeAssetsForLlm, collectAssetIds, pruneAssets } from '/src/core/assets.js';
     import { createDeck, cloneDeck, welcomeDeck } from '/src/core/model.js';
-    import { rgbaParts, hexToRgba } from '/src/ui/inspector.js';
+    import { rgbaParts, hexToRgba, Inspector } from '/src/ui/inspector.js';
     import { Stage } from '/src/ui/stage.js';
     import { EDITOR_ATTR } from '/src/util/id.js';
     import { ICONS, iconSvg } from '/src/core/icons.js';
@@ -270,6 +270,27 @@
       const pa = rgbaParts('rgba(180, 83, 9, 0.18)');
       A(pa.hex.toLowerCase() === '#b45309' && Math.abs(pa.a - 0.18) < 1e-6, 'colore: parse rgba → hex+alpha');
       A(rgbaParts('rgb(16, 32, 48)').a === 1, 'colore: rgb senza alpha → a=1');
+
+      // ---- inspector _color: trasparente parte da colore VISIBILE + opacità lo applica ----
+      const insp = new Inspector(document.createElement('div'), document.createElement('div'));
+      const capA = [];
+      const cw = insp._color('rgba(0,0,0,0)', (v) => capA.push(v), { allowTransparent: true, fallbackHex: '#ff0000' });
+      const swA = cw.querySelector('.insp__swatch');
+      A(swA.value === '#ff0000', 'color: swatch su trasparente parte dal fallback visibile (no nero)');
+      const rngA = cw.querySelector('.insp__alpha');
+      rngA.value = '50'; rngA.dispatchEvent(new Event('input'));
+      A(capA[capA.length - 1] === 'rgba(255, 0, 0, 0.5)', `color: opacità su trasparente applica il colore visibile (${capA[capA.length-1]})`);
+
+      // ---- inspector _color: copia/incolla colore CON trasparenza ----
+      const capDst = [];
+      const src = insp._color('rgba(0,128,255,0.4)', () => {}, { allowTransparent: true });
+      const dst = insp._color('#000000', (v) => capDst.push(v), { allowTransparent: true });
+      const srcCopy = src.querySelectorAll('.insp__cbtn')[0]; // ⧉ copia
+      const dstPaste = dst.querySelectorAll('.insp__cbtn')[1]; // ⤓ incolla
+      srcCopy.click();
+      dstPaste.click();
+      A(capDst[capDst.length - 1] === 'rgba(0, 128, 255, 0.4)', `color: incolla preserva la trasparenza (${capDst[capDst.length-1]})`);
+      A(dst.querySelector('.insp__swatch').value === '#0080ff', 'color: incolla aggiorna lo swatch');
 
       // ---- iframe sandbox: handler inline NON eseguito (difesa in profondità) ----
       const sbx = document.createElement('iframe');

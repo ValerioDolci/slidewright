@@ -164,6 +164,8 @@ const EN = {
   'Elimina': 'Delete',
   'Opacità del colore': 'Color opacity',
   'Trasparente': 'Transparent',
+  'Copia colore (con trasparenza)': 'Copy colour (with transparency)',
+  'Incolla colore': 'Paste colour',
 
   // ---- chat / agente ----
   "Chiedi all'agente di modificare le slide…": 'Ask the agent to edit the slides…',

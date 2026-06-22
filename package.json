@@ -1,6 +1,6 @@
 {
   "name": "slide-studio",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "private": true,
   "type": "module",
   "description": "Editor visuale locale per deck di slide HTML — riordino, editing testo, editing grafico, export HTML+PDF.",
