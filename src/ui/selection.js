@@ -49,10 +49,19 @@ export class SelectionLayer {
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" ' +
       'd="M13 6v5h5V7.75L22.25 12 18 16.25V13h-5v5h3.25L12 22.25 7.75 18H11v-5H6v3.25L1.75 12 6 7.75V11h5V6H7.75L12 1.75 16.25 6z"/></svg>';
     this.box.append(this.move);
+
+    // Maniglia di rotazione (come quella di spostamento, accanto). Ruota l'elemento
+    // attorno al suo centro; Shift = scatti di 15°.
+    this.rotate = el('div', { class: 'sel__rotate', title: 'Trascina per ruotare (Shift = 15°)' });
+    this.rotate.innerHTML =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" ' +
+      'd="M12 5V2L7.5 6.5 12 11V7c2.8 0 5 2.2 5 5s-2.2 5-5 5-5-2.2-5-5H5c0 3.9 3.1 7 7 7s7-3.1 7-7-3.1-7-7-7z"/></svg>';
+    this.box.append(this.rotate);
     this.overlay.append(this.box);
 
     this.box.addEventListener('pointerdown', (e) => {
       if (e.target.classList.contains('sel__h')) return this._startResize(e);
+      if (e.target.closest('.sel__rotate')) return this._startRotate(e);
       if (e.target.closest('.sel__move')) return this._startMove(e, true); // solo spostamento
       this._startMove(e, false);
     });
@@ -90,8 +99,9 @@ export class SelectionLayer {
     this.box.style.top = `${r.y}px`;
     this.box.style.width = `${r.w}px`;
     this.box.style.height = `${r.h}px`;
-    // poco spazio sopra → metti la maniglia di spostamento DENTRO il bordo alto
-    this.box.classList.toggle('sel--toptight', r.y < 34);
+    this.box.style.transform = r.angle ? `rotate(${r.angle}deg)` : '';
+    // poco spazio sopra → metti le maniglie alte DENTRO il bordo (solo senza rotazione)
+    this.box.classList.toggle('sel--toptight', r.angle === 0 && r.y < 34);
   }
 
   // Rende libero l'elemento lasciando un segnaposto (così gli altri box in flusso
@@ -156,6 +166,7 @@ export class SelectionLayer {
     try { this.box.setPointerCapture(e.pointerId); } catch (_) { /* headless/no-pointer */ }
     const sx = e.clientX, sy = e.clientY;
     const through = e.altKey || e.metaKey;
+    const ang = this.stage.rectOf(this.eid)?.angle || 0; // niente snap se ruotato
     let started = false, init = null;
 
     const begin = () => {
@@ -178,7 +189,7 @@ export class SelectionLayer {
       let x = Math.round(init.x0 + (ev.clientX - sx) / init.s);
       let y = Math.round(init.y0 + (ev.clientY - sy) / init.s);
       let vx = null, hy = null;
-      if (!ev.altKey) { // Alt durante il drag = disattiva snap
+      if (!ev.altKey && ang === 0) { // Alt o elemento ruotato = niente snap
         const sX = this._snapAxis([x, x + init.w / 2, x + init.w], init.targets.X);
         const sY = this._snapAxis([y, y + init.h / 2, y + init.h], init.targets.Y);
         x += sX.delta; y += sY.delta; vx = sX.line; hy = sY.line;
@@ -218,6 +229,7 @@ export class SelectionLayer {
     const dir = e.target.dataset.dir;
     const elm = this.stage.getElement(this.eid);
     if (!elm) return;
+    if ((this.stage.rectOf(this.eid)?.angle || 0) !== 0) return this._startResizeRotated(e, dir, elm);
     try { this.box.setPointerCapture(e.pointerId); } catch (_) { /* headless/no-pointer */ }
     this._ensureAbsolute(elm);
     const sx = e.clientX, sy = e.clientY, s = this.stage.scale;
@@ -265,6 +277,84 @@ export class SelectionLayer {
       this._drawGuides(vx, hy);
     };
     this._drag(move, e.pointerId);
+  }
+
+  // ---- resize di un elemento RUOTATO ----
+  // Lavora nel frame locale (non ruotato) dell'elemento e tiene fisso in coordinate
+  // schermo l'angolo/bordo opposto a quello trascinato (niente snap, niente guide).
+  _startResizeRotated(e, dir, elm) {
+    try { this.box.setPointerCapture(e.pointerId); } catch (_) { /* noop */ }
+    this._ensureAbsolute(elm);
+    const s = this.stage.scale;
+    const ang = (this.stage.rectOf(this.eid)?.angle || 0) * Math.PI / 180;
+    const cos = Math.cos(ang), sin = Math.sin(ang);
+    const sx = e.clientX, sy = e.clientY;
+    const x0 = this._num(elm.style.left), y0 = this._num(elm.style.top);
+    const w0 = elm.offsetWidth, h0 = elm.offsetHeight;
+    const ratio = h0 > 0 ? w0 / h0 : 1;
+    const west = dir.includes('w'), east = dir.includes('e');
+    const north = dir.includes('n'), south = dir.includes('s');
+    const corner = (west || east) && (north || south);
+    const rot = (vx, vy) => ({ x: vx * cos - vy * sin, y: vx * sin + vy * cos });
+    const fx0 = west ? w0 : 0, fy0 = north ? h0 : 0;          // angolo/bordo opposto (locale)
+    const cx0 = x0 + w0 / 2, cy0 = y0 + h0 / 2;               // centro iniziale (parent)
+    const fRot0 = rot(fx0 - w0 / 2, fy0 - h0 / 2);
+    const Pf = { x: cx0 + fRot0.x, y: cy0 + fRot0.y };        // punto fisso in coord. parent
+
+    const move = (ev) => {
+      const dxS = (ev.clientX - sx) / s, dyS = (ev.clientY - sy) / s;
+      const dxL = dxS * cos + dyS * sin;                      // R(-θ): delta nel frame locale
+      const dyL = -dxS * sin + dyS * cos;
+      let w = w0, h = h0;
+      if (east) w = Math.max(16, w0 + dxL);
+      if (west) w = Math.max(16, w0 - dxL);
+      if (south) h = Math.max(16, h0 + dyL);
+      if (north) h = Math.max(16, h0 - dyL);
+      if (ev.shiftKey && corner) { if (w / ratio >= 16) h = w / ratio; else w = h * ratio; }
+      const nfx = west ? w : 0, nfy = north ? h : 0;
+      const fRot = rot(nfx - w / 2, nfy - h / 2);
+      const cx = Pf.x - fRot.x, cy = Pf.y - fRot.y;           // nuovo centro: Pf resta fisso
+      elm.style.left = `${Math.round(cx - w / 2)}px`;
+      elm.style.top = `${Math.round(cy - h / 2)}px`;
+      elm.style.width = `${Math.round(w)}px`;
+      elm.style.height = `${Math.round(h)}px`;
+      this.refresh();
+    };
+    this._drag(move, e.pointerId);
+  }
+
+  // ---- rotazione ----
+  _startRotate(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const elm = this.stage.getElement(this.eid);
+    if (!elm) return;
+    // rendi libero PRIMA di ruotare (mentre l'angolo è 0): così la geometria letta
+    // da makeFree è corretta e il successivo resize non legge un AABB ruotato.
+    this._ensureAbsolute(elm);
+    this.refresh();
+    try { this.box.setPointerCapture(e.pointerId); } catch (_) { /* noop */ }
+    const br = this.box.getBoundingClientRect();              // AABB del box: il centro è invariante
+    const cx = br.left + br.width / 2, cy = br.top + br.height / 2;
+    const a0 = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+    const rot0 = this.stage.rectOf(this.eid)?.angle || 0;
+    let started = false;
+    const move = (ev) => {
+      started = true;
+      let a = rot0 + (Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI - a0);
+      a = ev.shiftKey ? Math.round(a / 15) * 15 : Math.round(a);
+      elm.style.transformOrigin = '50% 50%';
+      elm.style.transform = a ? `rotate(${a}deg)` : '';
+      this.refresh();
+    };
+    const up = () => {
+      this.box.removeEventListener('pointermove', move);
+      this.box.removeEventListener('pointerup', up);
+      try { this.box.releasePointerCapture(e.pointerId); } catch (_) { /* noop */ }
+      if (started) this.onChange();
+    };
+    this.box.addEventListener('pointermove', move);
+    this.box.addEventListener('pointerup', up);
   }
 
   _drag(move, pointerId) {

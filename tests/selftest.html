@@ -180,6 +180,12 @@
       A(!!stage.doc.querySelector('[data-ss-spacer]'), 'flusso: segnaposto inserito al posto di X');
       A(stage.doc.defaultView.getComputedStyle(stage.slideEl.querySelector('[data-tag="x"]')).position === 'absolute', 'flusso: X reso libero');
       A(stage.editableList().every((id) => !stage.getElement(id).hasAttribute('data-ss-spacer')), 'flusso: il segnaposto non è selezionabile');
+
+      // rotazione: rectOf legge l'angolo dall'inline transform
+      const xEl = stage.slideEl.querySelector('[data-tag="x"]');
+      A(stage.rectOf(xEl.getAttribute(EDITOR_ATTR)).angle === 0, 'rotazione: angolo 0 di default');
+      xEl.style.transform = 'rotate(30deg)';
+      A(Math.abs(stage.rectOf(xEl.getAttribute(EDITOR_ATTR)).angle - 30) <= 1, 'rotazione: rectOf legge 30°');
       scene.remove();
 
       // ---- inspector: colore con alpha (no schiacciamento dell'opacità) ----

@@ -320,12 +320,24 @@ export class Stage {
     return this.slideEl ? externalize(this.slideEl.innerHTML) : '';
   }
 
-  /** Rettangolo logico (1280×720) di un elemento, per disegnare le maniglie. */
+  /** Rettangolo logico (1280×720) di un elemento + angolo di rotazione, per
+   *  disegnare il box di selezione. w/h sono la geometria NON ruotata (offset*),
+   *  il centro è invariante alla rotazione (centro dell'AABB). */
   rectOf(eid) {
     const elm = this.getElement(eid);
     if (!elm) return null;
-    const r = elm.getBoundingClientRect(); // iframe non scalato → coord. logiche
-    return { x: r.left, y: r.top, w: r.width, h: r.height };
+    const r = elm.getBoundingClientRect(); // iframe non scalato → coord. logiche (AABB se ruotato)
+    const w = elm.offsetWidth || r.width, h = elm.offsetHeight || r.height;
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    return { x: cx - w / 2, y: cy - h / 2, w, h, angle: this._angleOf(elm) };
+  }
+
+  /** Angolo di rotazione (gradi) dall'inline transform dell'elemento. */
+  _angleOf(elm) {
+    const t = this.doc.defaultView.getComputedStyle(elm).transform;
+    if (!t || t === 'none') return 0;
+    try { const m = new DOMMatrixReadOnly(t); return Math.round(Math.atan2(m.b, m.a) * 180 / Math.PI); }
+    catch (_) { return 0; }
   }
 
   fitScale() {

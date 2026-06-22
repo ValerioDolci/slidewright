@@ -202,15 +202,19 @@ button { font-family: inherit; }
 
 /* maniglia di spostamento (croce a 4 frecce) sopra il box; va DENTRO il bordo alto
    quando l'elemento è troppo vicino al margine superiore (.sel--toptight) */
-.sel__move {
-  position: absolute; left: 50%; top: 0; transform: translate(-50%, -150%);
-  width: 24px; height: 24px; pointer-events: auto; cursor: move;
+.sel__move, .sel__rotate {
+  position: absolute; left: 50%; top: 0;
+  width: 24px; height: 24px; pointer-events: auto;
   display: grid; place-items: center; color: #fff;
   background: var(--amber); border: 1.5px solid #fff; border-radius: 6px;
   box-shadow: 0 2px 7px rgba(0,0,0,0.45);
 }
-.sel__move svg { width: 15px; height: 15px; display: block; }
-.sel--toptight .sel__move { transform: translate(-50%, 5px); }
+.sel__move svg, .sel__rotate svg { width: 15px; height: 15px; display: block; }
+.sel__move   { cursor: move; transform: translate(calc(-50% - 16px), -150%); }
+.sel__rotate { cursor: grab; border-radius: 50%; transform: translate(calc(-50% + 16px), -150%); }
+.sel__rotate:active { cursor: grabbing; }
+.sel--toptight .sel__move   { transform: translate(calc(-50% - 16px), 5px); }
+.sel--toptight .sel__rotate { transform: translate(calc(-50% + 16px), 5px); }
 
 /* ---------------- menù forme ---------------- */
 .shape-menu {
