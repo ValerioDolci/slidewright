@@ -139,6 +139,8 @@ const EN = {
   '— eredita —': '— inherit —',
   'Sans (sistema)': 'Sans (system)',
   'Riempimento e bordo': 'Fill & border',
+  'Bordo': 'Border',
+  'Spessore': 'Width',
   'Font': 'Font',
   'Dim.': 'Size',
   'Peso': 'Weight',

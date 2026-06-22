@@ -95,8 +95,23 @@ export class Inspector {
     ]));
 
     // ---- Riempimento & bordo ----
+    const borderW = parseInt(cs.borderTopWidth, 10) || 0;
     body.append(this._group('Riempimento e bordo', [
       this._row('Sfondo', this._color(cs.backgroundColor, (v, c) => setStyle('backgroundColor', v, c), true)),
+      // Bordo (colore): se non c'è ancora un bordo visibile, ne crea uno (solid, 2px)
+      this._row('Bordo', this._color(cs.borderTopColor, (v, c) => {
+        elm.style.borderColor = v;
+        if (borderW === 0 || cs.borderTopStyle === 'none') {
+          elm.style.borderStyle = 'solid';
+          if (!parseInt(elm.style.borderWidth, 10)) elm.style.borderWidth = '2px';
+        }
+        this.liveRefresh(); if (c) this.commit();
+      }, true)),
+      this._row('Spessore', this._number(borderW, 0, 40, (v, c) => {
+        elm.style.borderWidth = `${v}px`;
+        elm.style.borderStyle = v > 0 ? 'solid' : 'none';
+        this.liveRefresh(); if (c) this.commit();
+      })),
       this._row('Raggio', this._number(parseInt(cs.borderRadius, 10) || 0, 0, 400, (v, c) => setStyle('borderRadius', `${v}px`, c))),
       this._row('Opacità', this._range(Math.round((parseFloat(cs.opacity) || 1) * 100), (v, c) => setStyle('opacity', String(v / 100), c))),
       this._row('Padding', this._number(parseInt(cs.paddingTop, 10) || 0, 0, 200, (v, c) => setStyle('padding', `${v}px`, c))),
@@ -187,14 +202,18 @@ export class Inspector {
     const wrap = el('div', { class: 'insp__color' });
     const sw = el('input', { type: 'color', class: 'insp__swatch', value: hex });
     let alpha = a;
+    let rng = null;
     // alpha pieno → emette hex (compatibile con qualunque proprietà); altrimenti rgba
     const emit = (commit) => cb(alpha >= 1 ? sw.value : hexToRgba(sw.value, alpha), commit);
-    sw.addEventListener('input', () => emit(false));
-    sw.addEventListener('change', () => emit(true));
+    // scegliere un colore su un elemento TRASPARENTE (alpha 0) deve renderlo visibile,
+    // altrimenti il colore viene applicato ma resta invisibile ("non funziona").
+    const pick = (commit) => { if (alpha === 0) { alpha = 1; if (rng) rng.value = '100'; } emit(commit); };
+    sw.addEventListener('input', () => pick(false));
+    sw.addEventListener('change', () => pick(true));
     wrap.append(sw);
     if (allowTransparent) {
       // slider opacità del colore stesso (preserva l'alpha invece di schiacciarlo)
-      const rng = el('input', {
+      rng = el('input', {
         type: 'range', class: 'insp__alpha', min: '0', max: '100',
         value: String(Math.round(a * 100)), title: 'Opacità del colore',
       });
@@ -203,7 +222,7 @@ export class Inspector {
       wrap.append(rng);
       wrap.append(el('button', {
         class: 'insp__clear', title: 'Trasparente', text: '∅',
-        onClick: () => cb('transparent', true),
+        onClick: () => { alpha = 0; if (rng) rng.value = '0'; cb('transparent', true); },
       }));
     }
     return wrap;
