@@ -220,15 +220,24 @@ export class Stage {
     const doc = this.doc;
     if (!doc) return [];
     const out = [], touched = [];
-    let node, guard = 0;
-    while (guard++ < 60 && (node = doc.elementFromPoint(lx, ly))) {
-      if (node === doc.documentElement || node === doc.body) break;
-      const sel = node.closest(`[${EDITOR_ATTR}]`);
-      if (sel && !sel.classList.contains('ss-root') && !out.includes(sel)) out.push(sel);
-      touched.push([node, node.style.pointerEvents]);
-      node.style.pointerEvents = 'none';
+    try {
+      let node, guard = 0;
+      // setProperty(..,'important'): se il deck ha pointer-events:…!important sui nodi,
+      // un valore normale verrebbe ignorato → elementFromPoint ritorna sempre lo stesso
+      // → loop. Il guard (50) è comunque un fermo di sicurezza.
+      while (guard++ < 50 && (node = doc.elementFromPoint(lx, ly))) {
+        if (node === doc.documentElement || node === doc.body) break;
+        const sel = node.closest(`[${EDITOR_ATTR}]`);
+        if (sel && !sel.classList.contains('ss-root') && !out.includes(sel)) out.push(sel);
+        touched.push([node, node.style.getPropertyValue('pointer-events'), node.style.getPropertyPriority('pointer-events')]);
+        node.style.setProperty('pointer-events', 'none', 'important');
+      }
+    } finally {
+      // ripristina SEMPRE (anche su eccezione) il valore inline originale
+      for (const [n, v, prio] of touched) {
+        if (v) n.style.setProperty('pointer-events', v, prio); else n.style.removeProperty('pointer-events');
+      }
     }
-    for (const [n, pe] of touched) n.style.pointerEvents = pe; // ripristina
     return out;
   }
 
@@ -294,26 +303,26 @@ export class Stage {
    *  slot di grid/flex/margine). Idempotente: se è già assoluto non fa nulla. */
   makeFree(elm) {
     if (!elm || elm.classList.contains('ss-root')) return;
-    const win = this.doc.defaultView;
-    const cs = win.getComputedStyle(elm);
+    const cs = this.doc.defaultView.getComputedStyle(elm);
     if (cs.position === 'absolute' || cs.position === 'fixed') return;
-    const parent = elm.offsetParent || this.slideEl;
-    const er = elm.getBoundingClientRect();
-    const pr = parent.getBoundingClientRect();
+    // offset* = geometria di LAYOUT (relativa all'offsetParent), NON influenzata da
+    // transform (rotazione/fit) né da scroll → coerente con `position:absolute`.
+    // (gBCR sarebbe scalato sotto "Adatta" → doppio-scaling. Vedi review.)
+    const ow = elm.offsetWidth, oh = elm.offsetHeight, ol = elm.offsetLeft, ot = elm.offsetTop;
     const sp = this.doc.createElement('div');
     sp.setAttribute('data-ss-spacer', elm.getAttribute(EDITOR_ATTR) || '');
     sp.style.cssText =
-      `width:${er.width}px;height:${er.height}px;margin:${cs.margin};` +
+      `width:${ow}px;height:${oh}px;margin:${cs.margin};` +
       `flex:${cs.flex};grid-area:${cs.gridArea};align-self:${cs.alignSelf};` +
       `justify-self:${cs.justifySelf};box-sizing:border-box;visibility:hidden;pointer-events:none`;
     elm.parentNode.insertBefore(sp, elm);
     elm.style.position = 'absolute';
     elm.style.boxSizing = 'border-box';
     elm.style.margin = '0';
-    elm.style.left = `${er.left - pr.left + parent.scrollLeft}px`;
-    elm.style.top = `${er.top - pr.top + parent.scrollTop}px`;
-    elm.style.width = `${er.width}px`;
-    elm.style.height = `${er.height}px`;
+    elm.style.left = `${ol}px`;
+    elm.style.top = `${ot}px`;
+    elm.style.width = `${ow}px`;
+    elm.style.height = `${oh}px`;
   }
 
   _beginEditing(elm) {
@@ -368,8 +377,12 @@ export class Stage {
   rectOf(eid) {
     const elm = this.getElement(eid);
     if (!elm) return null;
-    const r = elm.getBoundingClientRect(); // iframe non scalato → coord. logiche (AABB se ruotato)
-    const w = elm.offsetWidth || r.width, h = elm.offsetHeight || r.height;
+    const r = elm.getBoundingClientRect(); // coord. logiche iframe; AABB se ruotato; SCALATO se "Adatta"
+    const cs = this.contentScale || 1;
+    // offset* ignorano i transform (dim. NON ruotata e NON scalata): vanno riportate
+    // nello spazio visivo moltiplicando per contentScale; il centro viene dall'gBCR (già scalato).
+    const w = elm.offsetWidth ? elm.offsetWidth * cs : r.width;
+    const h = elm.offsetHeight ? elm.offsetHeight * cs : r.height;
     const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     return { x: cx - w / 2, y: cy - h / 2, w, h, angle: this._angleOf(elm) };
   }

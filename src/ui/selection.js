@@ -167,6 +167,7 @@ export class SelectionLayer {
     const sx = e.clientX, sy = e.clientY;
     const through = e.altKey || e.metaKey;
     const ang = this.stage.rectOf(this.eid)?.angle || 0; // niente snap se ruotato
+    const snapOk = (this.stage.contentScale || 1) >= 1;   // niente snap se "Adattata"
     let started = false, init = null;
 
     const begin = () => {
@@ -189,7 +190,7 @@ export class SelectionLayer {
       let x = Math.round(init.x0 + (ev.clientX - sx) / init.s);
       let y = Math.round(init.y0 + (ev.clientY - sy) / init.s);
       let vx = null, hy = null;
-      if (!ev.altKey && ang === 0) { // Alt o elemento ruotato = niente snap
+      if (!ev.altKey && ang === 0 && snapOk) { // Alt / ruotato / adattato = niente snap
         const sX = this._snapAxis([x, x + init.w / 2, x + init.w], init.targets.X);
         const sY = this._snapAxis([y, y + init.h / 2, y + init.h], init.targets.Y);
         x += sX.delta; y += sY.delta; vx = sX.line; hy = sY.line;
@@ -234,9 +235,11 @@ export class SelectionLayer {
     this._ensureAbsolute(elm);
     const sx = e.clientX, sy = e.clientY, s = this.stage.effScale;
     const x0 = this._num(elm.style.left), y0 = this._num(elm.style.top);
-    const w0 = elm.getBoundingClientRect().width;
-    const h0 = elm.getBoundingClientRect().height;
+    // offset* (NON scalati): sotto "Adatta" il gBCR sarebbe scalato → il resize "saltava"
+    const w0 = elm.offsetWidth;
+    const h0 = elm.offsetHeight;
     const ratio = h0 > 0 ? w0 / h0 : 1;
+    const snapOk = (this.stage.contentScale || 1) >= 1; // snap solo a scala piena
     const west = dir.includes('w'), east = dir.includes('e');
     const north = dir.includes('n'), south = dir.includes('s');
     const corner = (west || east) && (north || south);
@@ -262,7 +265,7 @@ export class SelectionLayer {
 
       // snap del bordo mosso (no in ratio-lock per non litigare col vincolo)
       let vx = null, hy = null;
-      if (!ev.shiftKey && !ev.altKey) {
+      if (!ev.shiftKey && !ev.altKey && snapOk) {
         if (east) { const sn = this._snapAxis([x + w], targets.X); if (sn.line != null) { w = Math.max(16, w + sn.delta); vx = sn.line; } }
         else if (west) { const sn = this._snapAxis([x], targets.X); if (sn.line != null) { x += sn.delta; w = Math.max(16, w - sn.delta); vx = sn.line; } }
         if (south) { const sn = this._snapAxis([y + h], targets.Y); if (sn.line != null) { h = Math.max(16, h + sn.delta); hy = sn.line; } }
