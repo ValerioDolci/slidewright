@@ -12,13 +12,17 @@ import { EDITOR_ATTR, uid } from '../util/id.js';
 import { inline, externalize } from '../core/assets.js';
 
 // CSS iniettato SOLO nell'iframe dell'editor (mai esportato).
+// NB: la root della slide è marcata con la classe `.ss-root` (NON con un id fisso):
+// così l'id ORIGINALE della slide può essere conservato e le regole CSS del deck
+// che stilano per id (#slide-9 …) continuano ad applicarsi. `position` è !important
+// per vincere su eventuali #slide-N; `inset` resta normale così "Adatta" può alzare l'altezza.
 const IFRAME_CSS = `
   html,body{margin:0;width:${CANVAS.w}px;height:${CANVAS.h}px;overflow:hidden}
   /* la slide in editing è sempre piena e ferma */
-  #ss-slide{position:absolute;inset:0;opacity:1 !important;visibility:visible !important;
+  .ss-root{position:absolute !important;inset:0;opacity:1 !important;visibility:visible !important;
     transform:none !important;transition:none !important;pointer-events:auto !important}
   [${EDITOR_ATTR}]{cursor:default}
-  [${EDITOR_ATTR}]:not(#ss-slide):hover{outline:1px dashed rgba(180,83,9,.55);outline-offset:1px}
+  [${EDITOR_ATTR}]:not(.ss-root):hover{outline:1px dashed rgba(180,83,9,.55);outline-offset:1px}
   .ss-selected{outline:2px solid #b45309 !important;outline-offset:1px}
   .ss-editing{outline:2px solid #0e7490 !important;cursor:text}
   .ss-editing *{cursor:text}
@@ -28,8 +32,8 @@ const IFRAME_CSS = `
 // CSS iframe per la modalità DOCUMENTO (altezza libera, niente forzature 16:9).
 const DOC_IFRAME_CSS = `
   html,body{margin:0}
-  #ss-slide{min-height:100%}
-  [${EDITOR_ATTR}]:not(#ss-slide):hover{outline:1px dashed rgba(180,83,9,.55);outline-offset:1px}
+  .ss-root{min-height:100%}
+  [${EDITOR_ATTR}]:not(.ss-root):hover{outline:1px dashed rgba(180,83,9,.55);outline-offset:1px}
   .ss-selected{outline:2px solid #b45309 !important;outline-offset:1px}
   .ss-editing{outline:2px solid #0e7490 !important;cursor:text}
   .ss-editing *{cursor:text}
@@ -69,7 +73,7 @@ export class Stage {
   }
 
   get slideEl() {
-    return this.doc?.getElementById('ss-slide') || null;
+    return this.doc?.querySelector('.ss-root') || null;
   }
 
   /** Scrive la slide nell'iframe e (ri)aggancia gli handler. */
@@ -77,17 +81,18 @@ export class Stage {
     this.mode = mode;
     const doc = this.doc;
     doc.open();
+    const idAttr = slide.elId ? ` id="${slide.elId}"` : '';
     if (mode === 'doc') {
       doc.write(
         `<!DOCTYPE html><html><head><meta charset="UTF-8">` +
         `<style>${styleCss || ''}</style><style>${DOC_IFRAME_CSS}</style></head>` +
-        `<body><div id="ss-slide" class="ss-doc">${inline(slide.html)}</div></body></html>`
+        `<body><div${idAttr} class="ss-doc ss-root">${inline(slide.html)}</div></body></html>`
       );
     } else {
       doc.write(
         `<!DOCTYPE html><html><head><meta charset="UTF-8">` +
         `<style>${styleCss || ''}</style><style>${IFRAME_CSS}</style></head>` +
-        `<body><section id="ss-slide" class="slide active ${(slide.classes || []).join(' ')}">${inline(slide.html)}</section></body></html>`
+        `<body><section${idAttr} class="slide active ss-root ${(slide.classes || []).join(' ')}">${inline(slide.html)}</section></body></html>`
       );
     }
     doc.close();
@@ -111,8 +116,9 @@ export class Stage {
     if (fs && fs < 1) {
       root.style.height = 'auto';
       root.style.bottom = 'auto';
-      root.style.transformOrigin = 'top center';
-      root.style.transform = `scale(${fs})`;
+      // !important inline: vince sul `transform:none !important` dell'IFRAME_CSS della root
+      root.style.setProperty('transform-origin', 'top center', 'important');
+      root.style.setProperty('transform', `scale(${fs})`, 'important');
       this.contentScale = fs;
     }
   }
@@ -188,7 +194,7 @@ export class Stage {
     // Doppio click: editing testo inline.
     doc.addEventListener('dblclick', (e) => {
       const t = e.target.closest(`[${EDITOR_ATTR}]`);
-      if (!t || t.id === 'ss-slide') return;
+      if (!t || t.classList.contains('ss-root')) return;
       this._beginEditing(t);
     });
 
@@ -218,7 +224,7 @@ export class Stage {
     while (guard++ < 60 && (node = doc.elementFromPoint(lx, ly))) {
       if (node === doc.documentElement || node === doc.body) break;
       const sel = node.closest(`[${EDITOR_ATTR}]`);
-      if (sel && sel.id !== 'ss-slide' && !out.includes(sel)) out.push(sel);
+      if (sel && !sel.classList.contains('ss-root') && !out.includes(sel)) out.push(sel);
       touched.push([node, node.style.pointerEvents]);
       node.style.pointerEvents = 'none';
     }
@@ -251,7 +257,7 @@ export class Stage {
     const root = this.slideEl;
     if (!root) return [];
     return [...root.querySelectorAll(`[${EDITOR_ATTR}]`)]
-      .filter((n) => n.id !== 'ss-slide')
+      .filter((n) => !n.classList.contains('ss-root'))
       .map((n) => n.getAttribute(EDITOR_ATTR));
   }
 
@@ -277,7 +283,7 @@ export class Stage {
    *  Salta gli elementi non testuali (immagini, media, controlli). */
   beginEditingEid(eid) {
     const elm = this.getElement(eid);
-    if (!elm || elm.id === 'ss-slide') return;
+    if (!elm || elm.classList.contains('ss-root')) return;
     if (/^(IMG|SVG|CANVAS|VIDEO|AUDIO|IFRAME|INPUT|HR|BR)$/.test(elm.tagName)) return;
     this._beginEditing(elm);
   }
@@ -287,7 +293,7 @@ export class Stage {
    *  lascia al suo posto un segnaposto invisibile della stessa ingombra (stesso
    *  slot di grid/flex/margine). Idempotente: se è già assoluto non fa nulla. */
   makeFree(elm) {
-    if (!elm || elm.id === 'ss-slide') return;
+    if (!elm || elm.classList.contains('ss-root')) return;
     const win = this.doc.defaultView;
     const cs = win.getComputedStyle(elm);
     if (cs.position === 'absolute' || cs.position === 'fixed') return;

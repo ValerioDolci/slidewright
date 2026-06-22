@@ -73,7 +73,8 @@ export function buildDeckHtml(deck) {
         .join(' ');
       const fs = s.fitScale && s.fitScale < 1 ? s.fitScale : 0;
       const st = fs ? ` style="transform:scale(${fs});transform-origin:top center"` : '';
-      return `      <section class="${cls}"${st}>\n${indent(cleanSlideHtml(s.html), 8)}\n      </section>`;
+      const id = s.elId ? ` id="${s.elId}"` : ''; // preserva l'id (CSS #slide-N del deck)
+      return `      <section${id} class="${cls}"${st}>\n${indent(cleanSlideHtml(s.html), 8)}\n      </section>`;
     })
     .join('\n');
 

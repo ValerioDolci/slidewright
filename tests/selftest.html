@@ -75,6 +75,13 @@
       A(buildPrintHtml(fdeck, { pageBackground: '' }).includes('scale(0.6)'), 'adatta: PDF applica scale(fitScale)');
       A(buildDeckHtml(fdeck).includes('scale(0.6)'), 'adatta: export HTML applica scale(fitScale)');
 
+      // ---- id slide preservato (deck che stilano per #slide-N) ----
+      const idDeck = parseDeck('<html><body><div class="deck"><section class="slide" id="slide-9"><h1>A</h1></section><section class="slide"><h1>B</h1></section></div></body></html>');
+      A(idDeck.slides[0].elId === 'slide-9' && !idDeck.slides[1].elId, 'id: elId catturato da #slide-9 (vuoto se assente)');
+      A(buildDeckHtml(idDeck).includes('id="slide-9"'), 'id: export HTML preserva l\'id');
+      A(buildPrintHtml(idDeck, { pageBackground: '' }).includes('id="slide-9"'), 'id: export PDF preserva l\'id');
+      A(!parseDeck('<html><body><div class="deck"><section class="slide" id="a b"><h1>X</h1></section></div></body></html>').slides[0].elId, 'id: id non valido (spazi) scartato');
+
       // ---- handler inline (on*) / javascript: ----
       A(!/onerror/i.test(deck.slides[0].html), 'sicurezza: attributo on* (onerror) rimosso in import');
       const cl2 = cleanSlideHtml('<a href="javascript:alert(1)" onclick="x()">y</a>');
@@ -218,6 +225,12 @@
       await new Promise((r) => setTimeout(r, 20));
       A(Math.abs(stage.contentScale - mfs) < 1e-6, 'adatta: contentScale = fitScale al render');
       A(Math.abs(stage.effScale - stage.scale * mfs) < 1e-6, 'adatta: effScale = scale × contentScale');
+      const ctf = stage.doc.defaultView.getComputedStyle(stage.slideEl).transform;
+      A(ctf !== 'none' && /matrix/.test(ctf), 'adatta: transform applicato davvero (vince sul !important della root)');
+      // id originale preservato sulla root (CSS #slide-N del deck)
+      stage.render({ id: 'x', elId: 'slide-9', classes: [], html: '<h1>A</h1>' }, '', 'deck');
+      await new Promise((r) => setTimeout(r, 20));
+      A(stage.slideEl.id === 'slide-9' && stage.slideEl.classList.contains('ss-root'), 'id: root ha id originale + classe ss-root');
       scene.remove();
 
       // ---- inspector: colore con alpha (no schiacciamento dell'opacità) ----

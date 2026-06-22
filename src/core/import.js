@@ -12,6 +12,11 @@ import { sanitizeHtml } from './sanitize.js';
 
 const FONT_HOST = /fonts\.(googleapis|gstatic)\.com/i;
 
+/** id sicuro da reimmettere come attributo (token semplice, no spazi/virgolette). */
+function safeId(id) {
+  return id && /^[A-Za-z][\w:.-]*$/.test(id) ? id : '';
+}
+
 /** Rimuove gli @import a font esterni (Google Fonts) dal CSS. Regola 11/privacy. */
 function stripExternalFonts(css) {
   let found = false;
@@ -71,6 +76,9 @@ export function parseDeck(htmlString) {
     mode = 'deck';
     slides = sections.map((sec) => ({
       id: uid('sl'),
+      // id ORIGINALE del contenitore (molti deck stilano le slide per id: #slide-9 …):
+      // va preservato altrimenti la formattazione di quelle slide salta ("spaginata").
+      elId: safeId(sec.getAttribute('id')),
       classes: Array.from(sec.classList).filter((c) => c !== 'slide' && c !== 'active'),
       html: prep(sec),
     }));

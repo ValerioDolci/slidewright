@@ -103,7 +103,7 @@ export class Inspector {
     };
 
     // ---- Azioni ----
-    const canParent = elm.parentElement && elm.parentElement.id !== 'ss-slide';
+    const canParent = elm.parentElement && !elm.parentElement.classList.contains('ss-root');
     body.append(this._group('Elemento', [
       el('div', { class: 'insp__btns' }, [
         el('button', { class: 'btn btn--sm', text: '↑ Contenitore', title: 'Seleziona l\'elemento padre', disabled: canParent ? null : 'disabled', onClick: () => this.selectParent(eid) }),

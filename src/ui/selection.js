@@ -118,7 +118,7 @@ export class SelectionLayer {
     const sel = this.stage.getElement(this.eid);
     const X = [0, CANVAS.w / 2, CANVAS.w], Y = [0, CANVAS.h / 2, CANVAS.h];
     this.stage.slideEl.querySelectorAll(`[${EDITOR_ATTR}]`).forEach((n) => {
-      if (n === sel || n.id === 'ss-slide' || sel.contains(n) || n.contains(sel)) return;
+      if (n === sel || n.classList.contains('ss-root') || sel.contains(n) || n.contains(sel)) return;
       const r = n.getBoundingClientRect();
       X.push(r.left, r.left + r.width / 2, r.left + r.width);
       Y.push(r.top, r.top + r.height / 2, r.top + r.height);

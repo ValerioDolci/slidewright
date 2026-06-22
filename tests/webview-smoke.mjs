@@ -99,8 +99,8 @@ const mockAndChecker = `
       const fr = document.getElementById('slide-frame');
       A(!!fr, 'stage: iframe presente');
       const idoc = fr && fr.contentDocument;
-      const ss = idoc && idoc.getElementById('ss-slide');
-      A(!!ss, 'stage: #ss-slide renderizzato nell\\'iframe (sotto CSP)');
+      const ss = idoc && idoc.querySelector('.ss-root');
+      A(!!ss, 'stage: root .ss-root renderizzata nell\\'iframe (sotto CSP)');
       A(!!ss && /Titolo di prova/.test(ss.textContent || ''), 'stage: contenuto del deck visibile (h1)');
       A(!!ss && !!ss.querySelector('.card'), 'stage: la card del deck e\\' nel DOM');
       const thumbs = document.querySelectorAll('.thumbs li');
@@ -120,7 +120,7 @@ const mockAndChecker = `
       const NEW = SAMPLE.replace('Titolo di prova', 'Aggiornato esterno');
       window.dispatchEvent(new MessageEvent('message', { data: { type: 'external-change', text: NEW } }));
       await new Promise((r) => setTimeout(r, 400));
-      const ss2 = document.getElementById('slide-frame').contentDocument.getElementById('ss-slide');
+      const ss2 = document.getElementById('slide-frame').contentDocument.querySelector('.ss-root');
       A(!!ss2 && /Aggiornato esterno/.test(ss2.textContent || ''), 'host→webview: external-change ricarica il deck');
 
       // --- export / present / pdf → host (step 5) ---

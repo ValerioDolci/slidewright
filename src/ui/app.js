@@ -146,7 +146,7 @@ export class App {
     this.inspector.makeFree = (elm) => this.stage.makeFree(elm);
     this.inspector.selectParent = (eid) => {
       const p = this.stage.getElement(eid)?.parentElement;
-      if (!p || p.id === 'ss-slide') return;
+      if (!p || p.classList.contains('ss-root')) return;
       const peid = p.getAttribute(EDITOR_ATTR);
       if (peid) this.stage.onSelect(peid);
     };
@@ -461,7 +461,7 @@ export class App {
     let cand = slide.querySelector('.card');
     if (!cand) {
       cand = [...slide.querySelectorAll('div, section, aside, figure')].find((n) => {
-        if (n === slide || n.id === 'ss-slide') return false;
+        if (n === slide || n.classList.contains('ss-root')) return false;
         const cs = win.getComputedStyle(n);
         const hasBg = cs.backgroundColor !== 'rgba(0, 0, 0, 0)' || cs.backgroundImage !== 'none';
         const hasBorder = parseFloat(cs.borderTopWidth) > 0;
@@ -644,7 +644,7 @@ export class App {
 
   _duplicateElement(eid) {
     const elm = this.stage.getElement(eid);
-    if (!elm || elm.id === 'ss-slide') return;
+    if (!elm || elm.classList.contains('ss-root')) return;
     const clone = elm.cloneNode(true);
     clone.querySelectorAll(`[${EDITOR_ATTR}]`).forEach((n) => n.setAttribute(EDITOR_ATTR, uid('e')));
     clone.setAttribute(EDITOR_ATTR, uid('e'));
@@ -661,7 +661,7 @@ export class App {
 
   _deleteElement(eid) {
     const elm = this.stage.getElement(eid);
-    if (!elm || elm.id === 'ss-slide') return;
+    if (!elm || elm.classList.contains('ss-root')) return;
     // rimuovi anche l'eventuale segnaposto lasciato quando è stato reso libero
     const sp = this.stage.doc.querySelector(`[data-ss-spacer="${CSS.escape(eid)}"]`);
     if (sp) sp.remove();
@@ -673,7 +673,7 @@ export class App {
   // ---------- clipboard (⌘C / ⌘V / ⌘D) ----------
   _copyElement(eid) {
     const elm = this.stage.getElement(eid);
-    if (!elm || elm.id === 'ss-slide') return;
+    if (!elm || elm.classList.contains('ss-root')) return;
     this._clipboard = externalize(elm.outerHTML); // immagini → placeholder asset
     this._hint('Elemento copiato — ⌘V per incollare.');
   }

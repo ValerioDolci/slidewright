@@ -43,7 +43,8 @@ export function buildPrintHtml(deck, { pageBackground = '' } = {}) {
         ? ` style="top:0 !important;left:0 !important;right:auto !important;bottom:auto !important;` +
           `height:auto !important;width:100% !important;transform:scale(${fs}) !important;transform-origin:top center"`
         : '';
-      return `<div class="ss-page"><section class="${cls}"${st}>${cleanSlideHtml(s.html)}</section></div>`;
+      const id = s.elId ? ` id="${s.elId}"` : ''; // preserva l'id (CSS #slide-N del deck)
+      return `<div class="ss-page"><section${id} class="${cls}"${st}>${cleanSlideHtml(s.html)}</section></div>`;
     })
     .join('\n');
 

@@ -27,15 +27,16 @@ export class Sidebar {
   }
 
   _thumbDoc(deck, slide) {
+    const id = slide.elId ? ` id="${slide.elId}"` : '';     // preserva l'id (CSS #slide-N del deck)
     const fs = slide.fitScale && slide.fitScale < 1 ? slide.fitScale : 0;
     const fit = fs
-      ? `#s{height:auto!important;bottom:auto!important;transform:scale(${fs})!important;transform-origin:top center!important}`
+      ? `.ss-root{height:auto!important;bottom:auto!important;transform:scale(${fs})!important;transform-origin:top center!important}`
       : '';
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${deck.styleCss || ''}</style>
 <style>html,body{margin:0;width:${CANVAS.w}px;height:${CANVAS.h}px;overflow:hidden;pointer-events:none}
-#s{position:absolute;inset:0;opacity:1!important;transform:none!important;transition:none!important}
+.ss-root{position:absolute !important;inset:0;opacity:1!important;visibility:visible!important;transform:none!important;transition:none!important}
 ${fit}</style>
-</head><body><section id="s" class="slide active ${(slide.classes || []).join(' ')}">${inline(slide.html)}</section></body></html>`;
+</head><body><section${id} class="slide active ss-root ${(slide.classes || []).join(' ')}">${inline(slide.html)}</section></body></html>`;
   }
 
   render(deck, current) {
