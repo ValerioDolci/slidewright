@@ -27,6 +27,9 @@ export class WebPlatform {
 
   canDirectSave() { return !!this._handle; }
 
+  /** Adotta un handle (es. da un file trascinato): "Salva" scriverà sull'originale. */
+  adoptHandle(handle) { this._handle = handle || null; }
+
   // ---------- file ----------
   async openDeck() {
     if (fsSupported) {

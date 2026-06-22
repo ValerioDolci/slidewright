@@ -55,7 +55,7 @@ export class Stage {
     this.onEditStart = () => {};
     this.onEditEnd = () => {};
     this.onKey = () => {};       // tasti dentro l'iframe → instradati all'App
-    this.onDropFile = () => {};  // file .html droppato SOPRA la slide → instradato all'App
+    this.onDrop = () => {};      // file droppato SOPRA la slide → instradato all'App (con dataTransfer)
     this.onDragFileOver = () => {};
     this._editingEid = null;
     this.selectedEid = null;     // eid selezionato (lo aggiorna l'App via onSelect)
@@ -234,7 +234,7 @@ export class Stage {
     });
     doc.addEventListener('drop', (e) => {
       e.preventDefault();
-      this.onDropFile(e.dataTransfer?.files?.[0]);
+      this.onDrop(e.dataTransfer);
     });
   }
 

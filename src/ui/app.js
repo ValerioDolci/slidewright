@@ -267,14 +267,34 @@ export class App {
     window.addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; ov.hidden = true; } });
     window.addEventListener('drop', (e) => {
       e.preventDefault(); this._hideDrop();
-      this._onDropFile(e.dataTransfer?.files?.[0]);
+      this._onDrop(e.dataTransfer);
     });
     // drop SOPRA la slide (iframe): instradato qui da stage (vedi stage._wireEvents)
     this.stage.onDragFileOver = () => this._showDrop();
-    this.stage.onDropFile = (file) => { this._hideDrop(); this._onDropFile(file); };
+    this.stage.onDrop = (dt) => { this._hideDrop(); this._onDrop(dt); };
   }
 
-  /** Apre un file droppato (deck .html). Ignora gli altri tipi senza farli aprire dal browser. */
+  /** Drop di un file. Se il browser dà un handle scrivibile (File System Access),
+   *  lo lega → "Salva" scrive sull'ORIGINALE. Altrimenti apre una copia (Firefox/Safari). */
+  async _onDrop(dataTransfer) {
+    if (!dataTransfer) return;
+    const item = dataTransfer.items ? [...dataTransfer.items].find((i) => i.kind === 'file') : null;
+    if (item && typeof item.getAsFileSystemHandle === 'function' && this.platform.adoptHandle) {
+      let handle = null;
+      try { handle = await item.getAsFileSystemHandle(); } catch (_) { /* niente handle */ }
+      if (handle && handle.kind === 'file' && /\.html?$/i.test(handle.name)) {
+        try {
+          const text = await (await handle.getFile()).text();
+          this.platform.adoptHandle(handle);
+          this._loadDeckFromText(text, handle.name, true); // legato: Salva scrive sull'originale
+          return;
+        } catch (_) { /* cade nel fallback copia */ }
+      }
+    }
+    this._onDropFile(dataTransfer.files?.[0]); // fallback: copia (Salva = Salva con nome)
+  }
+
+  /** Apre un file droppato come COPIA (niente handle). Ignora i non-.html senza aprirli nel browser. */
   async _onDropFile(file) {
     if (!file) return;
     if (/\.html?$/i.test(file.name)) {

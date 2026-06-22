@@ -214,11 +214,11 @@
       A(stage.editableList().every((id) => !stage.getElement(id).hasAttribute('data-ss-spacer')), 'flusso: il segnaposto non è selezionabile');
 
       // drop di un file SOPRA la slide: preventDefault (il browser non apre il file) + inoltro
-      let dropped = 'no'; stage.onDropFile = () => { dropped = 'yes'; };
+      let dropped = 'no'; stage.onDrop = () => { dropped = 'yes'; };
       const dev = new DragEvent('drop', { bubbles: true, cancelable: true });
       stage.doc.dispatchEvent(dev);
       A(dev.defaultPrevented, 'drop iframe: preventDefault (il browser non apre il file)');
-      A(dropped === 'yes', 'drop iframe: file inoltrato a onDropFile');
+      A(dropped === 'yes', 'drop iframe: dataTransfer inoltrato a onDrop');
 
       // rotazione: rectOf legge l'angolo dall'inline transform
       const xEl = stage.slideEl.querySelector('[data-tag="x"]');
