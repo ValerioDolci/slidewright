@@ -7,3 +7,6 @@ dist/
 extension/media/
 *.vsix
 tests/_webview-harness.gen.html
+
+# note interne di sviluppo (non pubbliche)
+CLAUDE.md

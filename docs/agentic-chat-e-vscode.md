@@ -1,7 +1,7 @@
-# Slide Studio — Chat agentica & percorso VS Code (nota di fattibilità)
+# Slidewright — Chat agentica & percorso VS Code (nota di fattibilità)
 
 > Documento di lavoro. Raccoglie la discussione su (1) aggiungere una **chat agentica**
-> dentro Slide Studio per chiedere modifiche in linguaggio naturale, provider-neutrale, e
+> dentro Slidewright per chiedere modifiche in linguaggio naturale, provider-neutrale, e
 > (2) il bivio strategico **tool browser** vs **estensione VS Code** (per usare Copilot).
 > Non è una decisione presa: è materiale per decidere sui fatti.
 >
@@ -22,7 +22,7 @@ Provider-neutrale: "attacchi il modulo API (base URL + key + modello) e via".
 ## 2. Perché parte avvantaggiato
 
 Il punto critico di un editor agentico è **applicare le modifiche in modo sicuro e reversibile**.
-In Slide Studio c'è già:
+In Slidewright c'è già:
 - **Modello JSON pulito** del deck (`{meta, canvas, styleCss, slides:[{id,classes,html}]}`) →
   ideale da dare a un LLM e da modificare in modo strutturato (NON si fa toccare il DOM vivo).
 - Ogni modifica passa da **`store.commit` → undo/redo + autosave su file**. Quindi le modifiche
@@ -64,7 +64,7 @@ In Slide Studio c'è già:
   VS Code/JetBrains sono **interni e gated** (token Copilot generato dall'auth dell'editor
   ufficiale). Usarli da un'app terza è **contro i ToS** + bloccato + CORS.
 - Vie legittime = l'**inverso**: costruire una **Copilot Extension** (agente *dentro* Copilot Chat).
-- **Unico modo serio di riusare la licenza Copilot**: far diventare Slide Studio una **estensione
+- **Unico modo serio di riusare la licenza Copilot**: far diventare Slidewright una **estensione
   VS Code** e usare la **VS Code Language Model API** (`vscode.lm`). Vedi §7.
 
 ### M365 Copilot
@@ -103,10 +103,10 @@ Stesso cuore, due gusci sottili: aggiungi VS Code **senza** buttare il tool brow
 ### Cos'è
 Un **pacchetto Node** con: manifest `package.json` (contribution points), entry `extension.js`
 con `activate(context)` che gira nell'**Extension Host** (Node), UI dentro una **Webview**.
-La UI web di Slide Studio entra quasi pari pari nella Webview.
+La UI web di Slidewright entra quasi pari pari nella Webview.
 
 ### I 3 pezzi chiave
-1. **Custom Editor** — aprendo un `.html` (deck) VS Code apre Slide Studio come suo editor:
+1. **Custom Editor** — aprendo un `.html` (deck) VS Code apre Slidewright come suo editor:
    ```js
    vscode.window.registerCustomEditorProvider('slidewright.deck', provider)
    ```

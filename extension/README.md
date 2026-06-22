@@ -1,4 +1,4 @@
-# Slide Studio (slidewright) — estensione VS Code
+# Slidewright — estensione VS Code
 
 Editor visuale per **deck di slide HTML** dentro VS Code: riordino slide,
 editing del testo e grafico (sposta/ridimensiona, proprietà), export e — dagli
@@ -9,9 +9,9 @@ l'apertura/salvataggio passano dal **documento di VS Code** (dirty/undo nativi).
 
 ## Come si usa
 
-- Click destro su un file `.html`/`.htm` → **Apri con… → Slide Studio**
-  (oppure comando *Slide Studio: apri il file HTML nell'editor visuale*).
-- L'editor di testo resta il default sugli `.html`: Slide Studio è **opt-in**.
+- Click destro su un file `.html`/`.htm` → **Apri con… → Slidewright**
+  (oppure comando *Slidewright: apri il file HTML nell'editor visuale*).
+- L'editor di testo resta il default sugli `.html`: Slidewright è **opt-in**.
 
 ## Sviluppo
 

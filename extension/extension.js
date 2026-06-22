@@ -1,9 +1,9 @@
 'use strict';
 /**
- * Extension host (Node) di Slide Studio.
+ * Extension host (Node) di Slidewright.
  *
  * - Registra un Custom TEXT Editor su .html/.htm con priorità "option" (opt-in:
- *   l'editor di testo resta il default; si apre con "Apri con → Slide Studio").
+ *   l'editor di testo resta il default; si apre con "Apri con → Slidewright").
  * - La UI è la stessa webview del guscio web (bundle in media/), che parla con
  *   l'host via postMessage. L'host fa il lavoro "vero": carica/salva il documento
  *   (dirty/undo nativi), dialoghi, openExternal (PDF/presenta), e la chat via
