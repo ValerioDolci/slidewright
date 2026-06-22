@@ -143,6 +143,7 @@ export class App {
     this.inspector.liveRefresh = () => this.selection.refresh();
     this.inspector.duplicateElement = (eid) => this._duplicateElement(eid);
     this.inspector.deleteElement = (eid) => this._deleteElement(eid);
+    this.inspector.makeFree = (elm) => this.stage.makeFree(elm);
     this.inspector.selectParent = (eid) => {
       const p = this.stage.getElement(eid)?.parentElement;
       if (!p || p.id === 'ss-slide') return;
@@ -576,6 +577,9 @@ export class App {
   _deleteElement(eid) {
     const elm = this.stage.getElement(eid);
     if (!elm || elm.id === 'ss-slide') return;
+    // rimuovi anche l'eventuale segnaposto lasciato quando è stato reso libero
+    const sp = this.stage.doc.querySelector(`[data-ss-spacer="${CSS.escape(eid)}"]`);
+    if (sp) sp.remove();
     elm.remove();
     this._deselect();
     this.commitStage('Elimina elemento');

@@ -165,6 +165,21 @@
       stage.beginEditingEid('e-img'); A(!stage.isEditing(), 'editing: beginEditingEid salta le immagini');
       stage.beginEditingEid(stack[0].getAttribute(EDITOR_ATTR));
       A(stage.isEditing(), 'editing: beginEditingEid entra su un box'); stage._endEditing();
+
+      // spostare un box in flusso NON deve far riassestare gli altri (segnaposto)
+      stage.render({ id: 's2', classes: [], html:
+        '<div style="display:flex;gap:10px;position:absolute;left:100px;top:100px">' +
+        '<div data-tag="x" style="width:120px;height:60px;background:#444"></div>' +
+        '<div data-tag="y" style="width:120px;height:60px;background:#888"></div></div>'
+      }, '', 'deck');
+      await new Promise((r) => setTimeout(r, 30));
+      const yLeft = () => stage.slideEl.querySelector('[data-tag="y"]').getBoundingClientRect().left;
+      const y0 = yLeft();
+      stage.makeFree(stage.slideEl.querySelector('[data-tag="x"]'));
+      A(Math.abs(yLeft() - y0) < 1, `flusso: spostando X l'altro box Y resta fermo (${y0}→${yLeft()})`);
+      A(!!stage.doc.querySelector('[data-ss-spacer]'), 'flusso: segnaposto inserito al posto di X');
+      A(stage.doc.defaultView.getComputedStyle(stage.slideEl.querySelector('[data-tag="x"]')).position === 'absolute', 'flusso: X reso libero');
+      A(stage.editableList().every((id) => !stage.getElement(id).hasAttribute('data-ss-spacer')), 'flusso: il segnaposto non è selezionabile');
       scene.remove();
 
       // ---- inspector: colore con alpha (no schiacciamento dell'opacità) ----

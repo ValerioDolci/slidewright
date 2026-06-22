@@ -94,19 +94,10 @@ export class SelectionLayer {
     this.box.classList.toggle('sel--toptight', r.y < 34);
   }
 
+  // Rende libero l'elemento lasciando un segnaposto (così gli altri box in flusso
+  // non si riassestano). Logica centralizzata in Stage.makeFree.
   _ensureAbsolute(elm) {
-    const cs = this.stage.doc.defaultView.getComputedStyle(elm);
-    if (cs.position === 'absolute' || cs.position === 'fixed') return;
-    const parent = elm.offsetParent || this.stage.slideEl;
-    const er = elm.getBoundingClientRect();
-    const pr = parent.getBoundingClientRect();
-    elm.style.position = 'absolute';
-    elm.style.boxSizing = 'border-box';
-    elm.style.margin = '0';
-    elm.style.left = `${er.left - pr.left + parent.scrollLeft}px`;
-    elm.style.top = `${er.top - pr.top + parent.scrollTop}px`;
-    elm.style.width = `${er.width}px`;
-    elm.style.height = `${er.height}px`;
+    this.stage.makeFree(elm);
   }
 
   _num(v) { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; }

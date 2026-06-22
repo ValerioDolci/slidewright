@@ -128,6 +128,7 @@ export class Stage {
     if (!root) return;
     root.setAttribute(EDITOR_ATTR, root.getAttribute(EDITOR_ATTR) || uid('e'));
     root.querySelectorAll('*').forEach((node) => {
+      if (node.hasAttribute('data-ss-spacer')) return; // segnaposto: non editabile/selezionabile
       if (!node.getAttribute(EDITOR_ATTR)) node.setAttribute(EDITOR_ATTR, uid('e'));
     });
   }
@@ -243,6 +244,34 @@ export class Stage {
     if (!elm || elm.id === 'ss-slide') return;
     if (/^(IMG|SVG|CANVAS|VIDEO|AUDIO|IFRAME|INPUT|HR|BR)$/.test(elm.tagName)) return;
     this._beginEditing(elm);
+  }
+
+  /** Rende un elemento "libero" (position:absolute) congelando la sua geometria.
+   *  Per non far riassestare gli altri elementi IN FLUSSO quando questo ne esce,
+   *  lascia al suo posto un segnaposto invisibile della stessa ingombra (stesso
+   *  slot di grid/flex/margine). Idempotente: se è già assoluto non fa nulla. */
+  makeFree(elm) {
+    if (!elm || elm.id === 'ss-slide') return;
+    const win = this.doc.defaultView;
+    const cs = win.getComputedStyle(elm);
+    if (cs.position === 'absolute' || cs.position === 'fixed') return;
+    const parent = elm.offsetParent || this.slideEl;
+    const er = elm.getBoundingClientRect();
+    const pr = parent.getBoundingClientRect();
+    const sp = this.doc.createElement('div');
+    sp.setAttribute('data-ss-spacer', elm.getAttribute(EDITOR_ATTR) || '');
+    sp.style.cssText =
+      `width:${er.width}px;height:${er.height}px;margin:${cs.margin};` +
+      `flex:${cs.flex};grid-area:${cs.gridArea};align-self:${cs.alignSelf};` +
+      `justify-self:${cs.justifySelf};box-sizing:border-box;visibility:hidden;pointer-events:none`;
+    elm.parentNode.insertBefore(sp, elm);
+    elm.style.position = 'absolute';
+    elm.style.boxSizing = 'border-box';
+    elm.style.margin = '0';
+    elm.style.left = `${er.left - pr.left + parent.scrollLeft}px`;
+    elm.style.top = `${er.top - pr.top + parent.scrollTop}px`;
+    elm.style.width = `${er.width}px`;
+    elm.style.height = `${er.height}px`;
   }
 
   _beginEditing(elm) {

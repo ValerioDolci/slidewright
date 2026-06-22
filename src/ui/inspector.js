@@ -28,6 +28,7 @@ export class Inspector {
     this.duplicateElement = () => {};
     this.deleteElement = () => {};
     this.selectParent = () => {};
+    this.makeFree = () => {};
   }
 
   clear() {
@@ -84,16 +85,9 @@ export class Inspector {
       const conv = el('button', {
         class: 'btn btn--block', text: 'Rendi libero (posiziona a mano)',
         onClick: () => {
-          // congela la geometria attuale come assoluta
-          const parent = elm.offsetParent || elm.parentElement;
-          const er = elm.getBoundingClientRect();
-          const pr = parent.getBoundingClientRect();
-          elm.style.position = 'absolute';
-          elm.style.margin = '0';
-          elm.style.left = `${Math.round(er.left - pr.left)}px`;
-          elm.style.top = `${Math.round(er.top - pr.top)}px`;
-          elm.style.width = `${Math.round(er.width)}px`;
-          elm.style.height = `${Math.round(er.height)}px`;
+          // congela la geometria come assoluta lasciando un segnaposto (gli altri
+          // box in flusso non si riassestano — vedi Stage.makeFree)
+          this.makeFree(elm);
           this.commit();
           this.render(eid);
         },
