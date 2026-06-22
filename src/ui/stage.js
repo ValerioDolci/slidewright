@@ -55,6 +55,8 @@ export class Stage {
     this.onEditStart = () => {};
     this.onEditEnd = () => {};
     this.onKey = () => {};       // tasti dentro l'iframe → instradati all'App
+    this.onDropFile = () => {};  // file .html droppato SOPRA la slide → instradato all'App
+    this.onDragFileOver = () => {};
     this._editingEid = null;
     this.selectedEid = null;     // eid selezionato (lo aggiorna l'App via onSelect)
 
@@ -203,6 +205,19 @@ export class Stage {
     // all'App con lo stesso handler (durante l'editing testo non interferisce:
     // l'handler dell'App esce subito se isEditing()).
     doc.addEventListener('keydown', (e) => this.onKey(e));
+
+    // Drag&drop di un file SOPRA la slide: l'iframe è un contesto a sé, quindi il
+    // preventDefault sul window del padre NON lo copre → senza questo il browser
+    // "naviga" l'iframe al file droppato (lo apre) invece di passarlo all'editor.
+    doc.addEventListener('dragover', (e) => {
+      if (![...(e.dataTransfer?.types || [])].includes('Files')) return;
+      e.preventDefault();
+      this.onDragFileOver();
+    });
+    doc.addEventListener('drop', (e) => {
+      e.preventDefault();
+      this.onDropFile(e.dataTransfer?.files?.[0]);
+    });
   }
 
   /** Converte coordinate finestra-editor → coordinate logiche dell'iframe (per i

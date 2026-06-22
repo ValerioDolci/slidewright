@@ -255,17 +255,33 @@ export class App {
   _wireDnd() {
     const ov = $('#drop-overlay');
     let depth = 0;
-    window.addEventListener('dragover', (e) => e.preventDefault());
+    this._showDrop = () => { ov.hidden = false; };
+    this._hideDrop = () => { depth = 0; ov.hidden = true; };
+    window.addEventListener('dragover', (e) => {
+      if ([...(e.dataTransfer?.types || [])].includes('Files')) e.preventDefault();
+    });
     window.addEventListener('dragenter', (e) => {
       if (![...(e.dataTransfer?.types || [])].includes('Files')) return;
       depth++; ov.hidden = false;
     });
     window.addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; ov.hidden = true; } });
-    window.addEventListener('drop', async (e) => {
-      e.preventDefault(); depth = 0; ov.hidden = true;
-      const file = e.dataTransfer?.files?.[0];
-      if (file && /\.html?$/i.test(file.name)) this._loadDeckFromText(await readFileText(file), file.name);
+    window.addEventListener('drop', (e) => {
+      e.preventDefault(); this._hideDrop();
+      this._onDropFile(e.dataTransfer?.files?.[0]);
     });
+    // drop SOPRA la slide (iframe): instradato qui da stage (vedi stage._wireEvents)
+    this.stage.onDragFileOver = () => this._showDrop();
+    this.stage.onDropFile = (file) => { this._hideDrop(); this._onDropFile(file); };
+  }
+
+  /** Apre un file droppato (deck .html). Ignora gli altri tipi senza farli aprire dal browser. */
+  async _onDropFile(file) {
+    if (!file) return;
+    if (/\.html?$/i.test(file.name)) {
+      this._loadDeckFromText(await readFileText(file), file.name);
+    } else {
+      this._hint('Per aprire un deck, trascina un file .html.');
+    }
   }
 
   // ---------- rendering ----------
