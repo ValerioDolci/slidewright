@@ -49,6 +49,7 @@ export class Stage {
     this.onOverflow = () => {};
     this.onEditStart = () => {};
     this.onEditEnd = () => {};
+    this.onKey = () => {};       // tasti dentro l'iframe → instradati all'App
     this._editingEid = null;
     this.selectedEid = null;     // eid selezionato (lo aggiorna l'App via onSelect)
 
@@ -153,6 +154,12 @@ export class Stage {
       if (!t || t.id === 'ss-slide') return;
       this._beginEditing(t);
     });
+
+    // Tastiera: cliccando nella slide il focus va DENTRO l'iframe, quindi i tasti
+    // (Canc, frecce, ⌘Z…) arrivano qui e non al window del padre. Li inoltro
+    // all'App con lo stesso handler (durante l'editing testo non interferisce:
+    // l'handler dell'App esce subito se isEditing()).
+    doc.addEventListener('keydown', (e) => this.onKey(e));
   }
 
   /** Converte coordinate finestra-editor → coordinate logiche dell'iframe (per i
@@ -229,10 +236,13 @@ export class Stage {
       .some((n) => n !== sel && !sel.contains(n) && !n.contains(sel));
   }
 
-  /** Avvia l'editing testo dell'elemento dato (usato dal doppio click sul box). */
+  /** Avvia l'editing testo dell'elemento dato (click sul box / doppio click).
+   *  Salta gli elementi non testuali (immagini, media, controlli). */
   beginEditingEid(eid) {
     const elm = this.getElement(eid);
-    if (elm && elm.id !== 'ss-slide') this._beginEditing(elm);
+    if (!elm || elm.id === 'ss-slide') return;
+    if (/^(IMG|SVG|CANVAS|VIDEO|AUDIO|IFRAME|INPUT|HR|BR)$/.test(elm.tagName)) return;
+    this._beginEditing(elm);
   }
 
   _beginEditing(elm) {

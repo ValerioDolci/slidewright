@@ -153,6 +153,18 @@
       A(stage.editableList().length === 2, `lista: 2 elementi selezionabili per Tab (${stage.editableList().length})`);
       A(stage.overlapCountFor(picked[0]) >= 1, 'overlap: conteggio sovrapposizioni > 0 sull\'elemento');
       A(stage.hasForeignOverlap(picked[0]) === true, 'overlap: front/back = sovrapposizione vera (non annidamento)');
+
+      // tastiera instradata DALL'iframe (cliccando la slide il focus entra nell'iframe:
+      // senza questo Canc/frecce/⌘Z non arrivavano all'App)
+      let keyed = false; stage.onKey = () => { keyed = true; };
+      stage.doc.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }));
+      A(keyed, 'tastiera: keydown dentro l\'iframe instradato a onKey (Canc/frecce funzionano)');
+      // editing: salta le immagini, entra sui testi/box
+      const imgEl = stage.doc.createElement('img'); imgEl.setAttribute(EDITOR_ATTR, 'e-img');
+      stage.slideEl.appendChild(imgEl);
+      stage.beginEditingEid('e-img'); A(!stage.isEditing(), 'editing: beginEditingEid salta le immagini');
+      stage.beginEditingEid(stack[0].getAttribute(EDITOR_ATTR));
+      A(stage.isEditing(), 'editing: beginEditingEid entra su un box'); stage._endEditing();
       scene.remove();
 
       // ---- inspector: colore con alpha (no schiacciamento dell'opacità) ----

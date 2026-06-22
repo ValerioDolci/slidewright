@@ -41,18 +41,20 @@ export class SelectionLayer {
     HANDLES.forEach(([dir]) => {
       this.box.append(el('div', { class: `sel__h sel__h--${dir}`, dataset: { dir } }));
     });
+    // Maniglia di spostamento dedicata (icona 4 frecce, sopra il box) — afferrala
+    // per spostare senza ambiguità con il click-per-editare e senza che le maniglie
+    // di resize "rubino" l'area sui box piccoli (come la croce di spostamento PPT).
+    this.move = el('div', { class: 'sel__move', title: 'Trascina per spostare' });
+    this.move.innerHTML =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" ' +
+      'd="M13 6v5h5V7.75L22.25 12 18 16.25V13h-5v5h3.25L12 22.25 7.75 18H11v-5H6v3.25L1.75 12 6 7.75V11h5V6H7.75L12 1.75 16.25 6z"/></svg>';
+    this.box.append(this.move);
     this.overlay.append(this.box);
 
     this.box.addEventListener('pointerdown', (e) => {
       if (e.target.classList.contains('sel__h')) return this._startResize(e);
-      this._startMove(e);
-    });
-    // Doppio click sul box → editing testo dell'elemento selezionato (il box
-    // copre l'elemento, quindi l'iframe non riceverebbe il dblclick).
-    this.box.addEventListener('dblclick', (e) => {
-      if (e.target.classList.contains('sel__h')) return;
-      e.preventDefault();
-      if (this.eid) this.stage.beginEditingEid(this.eid);
+      if (e.target.closest('.sel__move')) return this._startMove(e, true); // solo spostamento
+      this._startMove(e, false);
     });
   }
 
@@ -88,6 +90,8 @@ export class SelectionLayer {
     this.box.style.top = `${r.y}px`;
     this.box.style.width = `${r.w}px`;
     this.box.style.height = `${r.h}px`;
+    // poco spazio sopra → metti la maniglia di spostamento DENTRO il bordo alto
+    this.box.classList.toggle('sel--toptight', r.y < 34);
   }
 
   _ensureAbsolute(elm) {
@@ -147,11 +151,14 @@ export class SelectionLayer {
   _clearGuides() { this.guides.replaceChildren(); }
 
   // ---- move ----
-  // Distingue click da trascinamento: finché il puntatore non supera la soglia è
-  // un click. Click semplice = mantiene la selezione; ⌥/⌘-click = "click through"
-  // sull'elemento sotto. Solo superata la soglia parte lo spostamento vero (e solo
-  // allora un elemento in flusso viene reso assoluto).
-  _startMove(e) {
+  // Distingue click da trascinamento (soglia 4px). Superata la soglia = spostamento
+  // (e solo allora un elemento in flusso diventa assoluto). Senza trascinamento, il
+  // significato del click dipende da `moveOnly`:
+  //  - dalla maniglia di spostamento (moveOnly=true): nessuna azione, solo muovere;
+  //  - dal corpo del box (moveOnly=false): ⌥/⌘-click = "click through" sull'elemento
+  //    sotto, click semplice = entra in editing testo (come il 2° click di PPT, così
+  //    funziona anche il doppio click "lento" che non emette l'evento dblclick).
+  _startMove(e, moveOnly = false) {
     e.preventDefault();
     const elm = this.stage.getElement(this.eid);
     if (!elm) return;
@@ -198,11 +205,15 @@ export class SelectionLayer {
       this._clearGuides();
       if (started) {
         this.onChange();              // commit dello spostamento
-      } else if (through) {
-        const p = this.stage.clientToLogical(sx, sy); // click ⌥/⌘ → elemento sotto
-        this.stage.pickAt(p.x, p.y, true);
+      } else if (!moveOnly) {
+        if (through) {
+          const p = this.stage.clientToLogical(sx, sy); // ⌥/⌘-click → elemento sotto
+          this.stage.pickAt(p.x, p.y, true);
+        } else {
+          this.stage.beginEditingEid(this.eid); // click sul corpo → editing testo (PPT)
+        }
       }
-      // click semplice senza modificatore: nessuna azione (mantiene la selezione)
+      // dalla maniglia di spostamento senza drag: nessuna azione
     };
 
     this.box.addEventListener('pointermove', move);

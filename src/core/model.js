@@ -118,7 +118,7 @@ const WELCOME_SLIDE_2 = `<div class="header"><span class="badge">Come si usa</sp
       <h3>Selezionare e scrivere</h3>
       <ul>
         <li><b>Click</b> su un elemento per selezionarlo</li>
-        <li><b>Doppio click</b> sul testo per scriverci dentro</li>
+        <li><b>Click di nuovo</b> (o doppio click) sul testo per scriverci</li>
         <li><b>⌥-click</b> per scegliere l'elemento <i>sotto</i> a quelli sovrapposti</li>
         <li><b>Tab</b> / <b>⇧Tab</b> per scorrere gli elementi della slide</li>
       </ul>
@@ -126,10 +126,10 @@ const WELCOME_SLIDE_2 = `<div class="header"><span class="badge">Come si usa</sp
     <div class="card">
       <h3>Spostare e sistemare</h3>
       <ul>
-        <li><b>Trascina</b> per spostare · <b>maniglie</b> per ridimensionare</li>
+        <li><b>Trascina la crocetta ✥</b> sopra il box per spostare · <b>maniglie</b> per ridimensionare</li>
         <li><b>Frecce</b> spostano di 1px (<b>Shift</b> = 10px)</li>
-        <li><b>⌘Z</b> / <b>⇧⌘Z</b> annulla / ripeti · <b>⌘S</b> salva</li>
-        <li><b>Canc</b> elimina · <b>Esc</b> deseleziona</li>
+        <li><b>Canc</b> elimina · <b>⌘Z</b>/<b>⇧⌘Z</b> annulla/ripeti · <b>⌘S</b> salva</li>
+        <li><b>Esc</b> deseleziona</li>
       </ul>
     </div>
   </div>
@@ -162,7 +162,7 @@ const WELCOME_EN_2 = `<div class="header"><span class="badge">How it works</span
       <h3>Select &amp; type</h3>
       <ul>
         <li><b>Click</b> an element to select it</li>
-        <li><b>Double-click</b> text to type into it</li>
+        <li><b>Click again</b> (or double-click) on text to type into it</li>
         <li><b>⌥-click</b> to pick the element <i>below</i> overlapping ones</li>
         <li><b>Tab</b> / <b>⇧Tab</b> to cycle through the slide elements</li>
       </ul>
@@ -170,10 +170,10 @@ const WELCOME_EN_2 = `<div class="header"><span class="badge">How it works</span
     <div class="card">
       <h3>Move &amp; arrange</h3>
       <ul>
-        <li><b>Drag</b> to move · <b>handles</b> to resize</li>
+        <li><b>Drag the ✥ handle</b> above the box to move · <b>handles</b> to resize</li>
         <li><b>Arrows</b> move 1px (<b>Shift</b> = 10px)</li>
-        <li><b>⌘Z</b> / <b>⇧⌘Z</b> undo / redo · <b>⌘S</b> save</li>
-        <li><b>Del</b> delete · <b>Esc</b> deselect</li>
+        <li><b>Del</b> delete · <b>⌘Z</b>/<b>⇧⌘Z</b> undo/redo · <b>⌘S</b> save</li>
+        <li><b>Esc</b> deselect</li>
       </ul>
     </div>
   </div>

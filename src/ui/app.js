@@ -91,6 +91,7 @@ export class App {
     this.stage.onBackground = () => this._deselect();
     this.stage.onEditStart = () => this.selection.suspend();
     this.stage.onEditEnd = () => this.selection.resume();
+    this.stage.onKey = (e) => this._onKeydown(e); // tasti dentro l'iframe
     this.stage.onTextCommit = () => {
       this.commitStage('Modifica testo');
       if (store.selectedEid) this.selection.refresh();
@@ -186,9 +187,15 @@ export class App {
   }
 
   // ---------- keyboard ----------
+  // Stesso handler per i tasti del window E per quelli dentro l'iframe (instradati
+  // da stage.onKey): cliccando nella slide il focus entra nell'iframe e altrimenti
+  // i tasti non arriverebbero (Canc non cancellava, frecce/⌘Z idem).
   _wireKeyboard() {
-    window.addEventListener('keydown', (e) => {
-      const help = $('#help-pop');
+    window.addEventListener('keydown', (e) => this._onKeydown(e));
+  }
+
+  _onKeydown(e) {
+    const help = $('#help-pop');
       if (help && !help.hidden) { if (e.key === 'Escape') help.hidden = true; return; }
       const meta = e.metaKey || e.ctrlKey;
       // ⌘S salva anche mentre si edita il testo
@@ -228,7 +235,6 @@ export class App {
         this.selection.refresh();
         this._nudgeCommit();
       }
-    });
   }
 
   // commit "morbido" per i nudge: debounce per non intasare la history
