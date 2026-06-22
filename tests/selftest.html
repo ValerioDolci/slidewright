@@ -53,6 +53,16 @@
       // ---- script strip ----
       A(!/<script/i.test(deck.slides[1].html) && !window.__HACK, 'sicurezza: <script> rimosso, non eseguito');
 
+      // ---- <style> dentro una slide NON deve diventare globale (non spagina le altre) ----
+      const leaky = parseDeck('<html><head><style>.card{color:#fff}</style></head><body><div class="deck">' +
+        '<section class="slide"><div class="card">A</div></section>' +
+        '<section class="slide"><style>section{width:1920px} .card{display:none}</style><div class="card">B</div></section>' +
+        '<section class="slide"><div class="card">C</div></section></div></body></html>');
+      A(leaky.slides.length === 3, 'slide-style: 3 slide');
+      A(!/1920px/.test(leaky.styleCss) && !/display:\s*none/.test(leaky.styleCss), 'slide-style: lo <style> della slide NON entra nel CSS globale');
+      A(/color:#fff/.test(leaky.styleCss), 'slide-style: lo <style> globale (head) resta globale');
+      A(/<style/i.test(leaky.slides[1].html) && /1920px/.test(leaky.slides[1].html), 'slide-style: lo <style> resta nella sua slide (isolato)');
+
       // ---- handler inline (on*) / javascript: ----
       A(!/onerror/i.test(deck.slides[0].html), 'sicurezza: attributo on* (onerror) rimosso in import');
       const cl2 = cleanSlideHtml('<a href="javascript:alert(1)" onclick="x()">y</a>');

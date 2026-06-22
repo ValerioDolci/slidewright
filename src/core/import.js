@@ -31,21 +31,6 @@ export function parseDeck(htmlString) {
     lang: doc.documentElement.getAttribute('lang') || 'it',
   };
 
-  // Tutti i blocchi <style> (head + body), nell'ordine del documento.
-  let styleCss = Array.from(doc.querySelectorAll('style'))
-    .map((s) => s.textContent || '')
-    .join('\n\n')
-    .trim();
-
-  // Font esterni: @import nei <style> + <link rel=stylesheet> in head.
-  const fontStrip = stripExternalFonts(styleCss);
-  styleCss = fontStrip.css;
-  const fontLinks = Array.from(doc.querySelectorAll('link[href]'))
-    .filter((l) => FONT_HOST.test(l.getAttribute('href') || ''));
-  if (fontStrip.found || fontLinks.length) {
-    warnings.push('Font esterni (Google Fonts) rilevati e rimossi: il deck userà i font di sistema.');
-  }
-
   // Deck = elementi con classe `.slide` (marcatore canonico). Se manca, un
   // eventuale wrapper `.deck` con figli <section> conta come deck. Tutto il resto
   // (incl. documenti che usano <section> semantici) → modalità documento.
@@ -53,6 +38,26 @@ export function parseDeck(htmlString) {
   if (sections.length === 0) {
     const deckWrap = doc.querySelector('.deck');
     if (deckWrap) sections = Array.from(deckWrap.querySelectorAll(':scope > section'));
+  }
+
+  // Stili GLOBALI = blocchi <style> NON contenuti in una slide (ordine di documento).
+  // Gli <style> DENTRO una slide restano nella slide (resi in isolamento solo per
+  // quella): così una slide "anomala" (es. con un <style> dalle regole globali o di
+  // dimensione diversa) non spagina anche le altre slide. [bug import 2026-06-22]
+  const insideSlide = (node) => sections.some((sec) => sec.contains(node));
+  let styleCss = Array.from(doc.querySelectorAll('style'))
+    .filter((s) => !insideSlide(s))
+    .map((s) => s.textContent || '')
+    .join('\n\n')
+    .trim();
+
+  // Font esterni: @import nei <style> globali + <link rel=stylesheet> in head.
+  const fontStrip = stripExternalFonts(styleCss);
+  styleCss = fontStrip.css;
+  const fontLinks = Array.from(doc.querySelectorAll('link[href]'))
+    .filter((l) => FONT_HOST.test(l.getAttribute('href') || ''));
+  if (fontStrip.found || fontLinks.length) {
+    warnings.push('Font esterni (Google Fonts) rilevati e rimossi: il deck userà i font di sistema.');
   }
 
   // sicurezza: niente <script> né handler inline (on*) / javascript: nelle slide
