@@ -242,6 +242,14 @@
       const owF = inner.offsetWidth, ohF = inner.offsetHeight;
       stage.makeFree(inner);
       A(Math.abs(inner.offsetWidth - owF) < 3 && Math.abs(inner.offsetHeight - ohF) < 3, 'adatta×makeFree: dimensione invariata (offset*, no doppio-scaling)');
+
+      // auto-adatta: deck con slide a dimensione PROPRIA (≠ canvas) → scala per riempire
+      stage.render({ id: 'fx', classes: [], html: '<h1>X</h1>' }, '.slide{width:960px;height:540px}', 'deck');
+      await new Promise((r) => setTimeout(r, 30));
+      A(Math.abs(stage.contentScale - Math.min(1280 / 960, 720 / 540)) < 0.02, 'auto-adatta: scala per riempire un deck 960×540 (' + stage.contentScale.toFixed(3) + ')');
+      stage.render({ id: 'full', classes: [], html: '<h1>Y</h1>' }, '', 'deck');
+      await new Promise((r) => setTimeout(r, 20));
+      A(stage.contentScale === 1, 'auto-adatta: un deck che riempie già NON viene scalato');
       // id originale preservato sulla root (CSS #slide-N del deck)
       stage.render({ id: 'x', elId: 'slide-9', classes: [], html: '<h1>A</h1>' }, '', 'deck');
       await new Promise((r) => setTimeout(r, 20));

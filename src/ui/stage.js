@@ -114,6 +114,8 @@ export class Stage {
     this.contentScale = 1;
     const root = this.slideEl;
     if (!root || this.mode === 'doc') return;
+
+    // "Adatta" MANUALE (overflow): ha la precedenza. Rimpicciolisce a fitScale.
     const fs = slide && slide.fitScale;
     if (fs && fs < 1) {
       root.style.height = 'auto';
@@ -122,6 +124,22 @@ export class Stage {
       root.style.setProperty('transform-origin', 'top center', 'important');
       root.style.setProperty('transform', `scale(${fs})`, 'important');
       this.contentScale = fs;
+      return;
+    }
+
+    // AUTO-ADATTA: se il deck dà alla slide una dimensione PROPRIA diversa dal canvas
+    // (es. .slide{width:960px;height:540px}), la slide non riempirebbe il riquadro.
+    // La scalo per riempirlo (sia su che giù), ancorata in alto a sinistra.
+    const ow = root.offsetWidth, oh = root.offsetHeight;
+    if (ow && oh && (Math.abs(ow - CANVAS.w) > 2 || Math.abs(oh - CANVAS.h) > 2)) {
+      const s = Math.min(CANVAS.w / ow, CANVAS.h / oh);
+      if (Math.abs(s - 1) > 0.01) {
+        root.style.left = '0'; root.style.top = '0';
+        root.style.right = 'auto'; root.style.bottom = 'auto'; root.style.margin = '0';
+        root.style.setProperty('transform-origin', 'top left', 'important');
+        root.style.setProperty('transform', `scale(${s})`, 'important');
+        this.contentScale = s;
+      }
     }
   }
 
