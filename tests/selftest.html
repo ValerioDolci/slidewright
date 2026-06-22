@@ -18,8 +18,10 @@
     import { parseDeck } from '/src/core/import.js';
     import { buildDeckHtml, cleanSlideHtml } from '/src/core/export-html.js';
     import { externalize, inline, describeAssetsForLlm, collectAssetIds, pruneAssets } from '/src/core/assets.js';
-    import { createDeck, cloneDeck } from '/src/core/model.js';
+    import { createDeck, cloneDeck, welcomeDeck } from '/src/core/model.js';
     import { rgbaParts, hexToRgba } from '/src/ui/inspector.js';
+    import { Stage } from '/src/ui/stage.js';
+    import { EDITOR_ATTR } from '/src/util/id.js';
 
     const log = []; let pass = 0, fail = 0;
     const A = (cond, msg) => {
@@ -103,6 +105,55 @@
       A(d.slides.length >= 1 && d.canvas.w === 1280, 'model: createDeck valido');
       const c = cloneDeck(d); c.slides[0].html = 'X';
       A(d.slides[0].html !== 'X', 'model: cloneDeck indipendente (deep copy)');
+
+      // ---- deck di benvenuto (slide iniziali = istruzioni) ----
+      const wd = welcomeDeck();
+      A(wd.slides.length === 2 && wd.mode === 'deck', `benvenuto: deck di 2 slide (${wd.slides.length})`);
+      A(/Benvenuto in Slide Studio/i.test(wd.slides[0].html), 'benvenuto IT: slide 1 = intro');
+      A(/Tab|⌥-click|Doppio click/i.test(wd.slides[1].html), 'benvenuto IT: slide 2 = istruzioni gesti');
+      A(wd.slides[0].id !== createDeck().slides[0].id, 'benvenuto: id slide univoci');
+      A(wd.meta.lang === 'it', 'benvenuto IT: meta.lang it');
+      const wde = welcomeDeck('en');
+      A(/Welcome to Slide Studio/i.test(wde.slides[0].html), 'benvenuto EN: slide 1 in inglese');
+      A(/Tab|Double-click|⌥-click/i.test(wde.slides[1].html), 'benvenuto EN: slide 2 istruzioni EN');
+      A(wde.meta.lang === 'en' && !/Benvenuto/i.test(wde.slides[0].html), 'benvenuto EN: lingua en, niente italiano');
+
+      // ---- selezione attraverso elementi sovrapposti (issue 2) ----
+      const scene = document.createElement('div');
+      scene.style.cssText = 'position:absolute;left:-9999px;top:0;width:640px;height:360px';
+      scene.innerHTML = '<div id="t-canvas"><iframe id="t-frame" style="width:100%;height:100%;border:0"></iframe><div id="t-overlay"></div></div>';
+      document.body.appendChild(scene);
+      const stage = new Stage({
+        sceneEl: scene, canvasEl: scene.querySelector('#t-canvas'),
+        frameEl: scene.querySelector('#t-frame'), overlayEl: scene.querySelector('#t-overlay'),
+      });
+      stage.render({ id: 's1', classes: [], html:
+        '<div data-tag="back" style="position:absolute;left:100px;top:100px;width:300px;height:300px;background:#333"></div>' +
+        '<div data-tag="front" style="position:absolute;left:200px;top:200px;width:300px;height:300px;background:#777"></div>'
+      }, '', 'deck');
+      await new Promise((r) => setTimeout(r, 60));
+      stage.fitScale();
+
+      const stack = stage._stackAt(250, 250); // dentro entrambi (overlap 200..400)
+      A(stack.length === 2, `selezione: 2 elementi impilati al punto (${stack.length})`);
+      A(stack[0]?.getAttribute('data-tag') === 'front', 'selezione: il primo è quello in cima (front)');
+      A(stack[1]?.getAttribute('data-tag') === 'back', 'selezione: il secondo è quello sotto (back)');
+      A(stage._stackAt(10, 10).length === 0, 'selezione: punto vuoto → nessun elemento (ss-slide escluso)');
+      A(stack[0].style.pointerEvents === '' && stack[1].style.pointerEvents === '', 'selezione: pointer-events ripristinati dopo lo scan');
+
+      const picked = [];
+      stage.onSelect = (eid) => { picked.push(eid); stage.selectedEid = eid; };
+      stage.pickAt(250, 250, false);
+      A(stage.getElement(picked[0])?.getAttribute('data-tag') === 'front', 'pickAt: click → elemento in cima');
+      stage.pickAt(250, 250, true);  // ⌥/⌘ → click through
+      A(stage.getElement(picked[1])?.getAttribute('data-tag') === 'back', 'pickAt ⌥: click-through → elemento sotto');
+      stage.pickAt(250, 250, true);  // cicla e torna in cima
+      A(stage.getElement(picked[2])?.getAttribute('data-tag') === 'front', 'pickAt ⌥: il ciclo torna in cima (wrap)');
+
+      A(stage.editableList().length === 2, `lista: 2 elementi selezionabili per Tab (${stage.editableList().length})`);
+      A(stage.overlapCountFor(picked[0]) >= 1, 'overlap: conteggio sovrapposizioni > 0 sull\'elemento');
+      A(stage.hasForeignOverlap(picked[0]) === true, 'overlap: front/back = sovrapposizione vera (non annidamento)');
+      scene.remove();
 
       // ---- inspector: colore con alpha (no schiacciamento dell'opacità) ----
       A(hexToRgba('#b45309', 0.2) === 'rgba(180, 83, 9, 0.2)', 'colore: hex+alpha → rgba');

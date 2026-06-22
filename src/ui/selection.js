@@ -47,6 +47,13 @@ export class SelectionLayer {
       if (e.target.classList.contains('sel__h')) return this._startResize(e);
       this._startMove(e);
     });
+    // Doppio click sul box → editing testo dell'elemento selezionato (il box
+    // copre l'elemento, quindi l'iframe non riceverebbe il dblclick).
+    this.box.addEventListener('dblclick', (e) => {
+      if (e.target.classList.contains('sel__h')) return;
+      e.preventDefault();
+      if (this.eid) this.stage.beginEditingEid(this.eid);
+    });
   }
 
   hide() {
@@ -55,13 +62,25 @@ export class SelectionLayer {
     this._clearGuides();
   }
 
+  /** Nasconde il box senza perdere la selezione (durante l'editing del testo). */
+  suspend() {
+    this._suspended = true;
+    this.box.style.display = 'none';
+    this._clearGuides();
+  }
+
+  resume() {
+    this._suspended = false;
+    this.refresh();
+  }
+
   show(eid) {
     this.eid = eid;
     this.refresh();
   }
 
   refresh() {
-    if (!this.eid) return;
+    if (!this.eid || this._suspended) return;
     const r = this.stage.rectOf(this.eid);
     if (!r) return this.hide();
     this.box.style.display = 'block';
@@ -128,24 +147,42 @@ export class SelectionLayer {
   _clearGuides() { this.guides.replaceChildren(); }
 
   // ---- move ----
+  // Distingue click da trascinamento: finché il puntatore non supera la soglia è
+  // un click. Click semplice = mantiene la selezione; ⌥/⌘-click = "click through"
+  // sull'elemento sotto. Solo superata la soglia parte lo spostamento vero (e solo
+  // allora un elemento in flusso viene reso assoluto).
   _startMove(e) {
     e.preventDefault();
     const elm = this.stage.getElement(this.eid);
     if (!elm) return;
     try { this.box.setPointerCapture(e.pointerId); } catch (_) { /* headless/no-pointer */ }
-    this._ensureAbsolute(elm);
-    const sx = e.clientX, sy = e.clientY, s = this.stage.scale;
-    const x0 = this._num(elm.style.left), y0 = this._num(elm.style.top);
-    const w = elm.getBoundingClientRect().width, h = elm.getBoundingClientRect().height;
-    const targets = this._snapTargets();
+    const sx = e.clientX, sy = e.clientY;
+    const through = e.altKey || e.metaKey;
+    let started = false, init = null;
+
+    const begin = () => {
+      this._ensureAbsolute(elm);
+      init = {
+        s: this.stage.scale,
+        x0: this._num(elm.style.left),
+        y0: this._num(elm.style.top),
+        w: elm.getBoundingClientRect().width,
+        h: elm.getBoundingClientRect().height,
+        targets: this._snapTargets(),
+      };
+    };
 
     const move = (ev) => {
-      let x = Math.round(x0 + (ev.clientX - sx) / s);
-      let y = Math.round(y0 + (ev.clientY - sy) / s);
+      if (!started) {
+        if (Math.abs(ev.clientX - sx) < 4 && Math.abs(ev.clientY - sy) < 4) return;
+        started = true; begin();
+      }
+      let x = Math.round(init.x0 + (ev.clientX - sx) / init.s);
+      let y = Math.round(init.y0 + (ev.clientY - sy) / init.s);
       let vx = null, hy = null;
-      if (!ev.altKey) { // Alt tiene premuto = disattiva snap
-        const sX = this._snapAxis([x, x + w / 2, x + w], targets.X);
-        const sY = this._snapAxis([y, y + h / 2, y + h], targets.Y);
+      if (!ev.altKey) { // Alt durante il drag = disattiva snap
+        const sX = this._snapAxis([x, x + init.w / 2, x + init.w], init.targets.X);
+        const sY = this._snapAxis([y, y + init.h / 2, y + init.h], init.targets.Y);
         x += sX.delta; y += sY.delta; vx = sX.line; hy = sY.line;
       }
       elm.style.left = `${x}px`;
@@ -153,7 +190,23 @@ export class SelectionLayer {
       this.refresh();
       this._drawGuides(vx, hy);
     };
-    this._drag(move, e.pointerId);
+
+    const up = () => {
+      this.box.removeEventListener('pointermove', move);
+      this.box.removeEventListener('pointerup', up);
+      try { this.box.releasePointerCapture(e.pointerId); } catch (_) { /* noop */ }
+      this._clearGuides();
+      if (started) {
+        this.onChange();              // commit dello spostamento
+      } else if (through) {
+        const p = this.stage.clientToLogical(sx, sy); // click ⌥/⌘ → elemento sotto
+        this.stage.pickAt(p.x, p.y, true);
+      }
+      // click semplice senza modificatore: nessuna azione (mantiene la selezione)
+    };
+
+    this.box.addEventListener('pointermove', move);
+    this.box.addEventListener('pointerup', up);
   }
 
   // ---- resize ----

@@ -8,7 +8,7 @@
  */
 
 import { store } from '../core/store.js';
-import { createDeck, createSlide, cloneDeck, emptySlideHtml, CANVAS } from '../core/model.js';
+import { createDeck, createSlide, cloneDeck, emptySlideHtml, welcomeDeck, CANVAS } from '../core/model.js';
 import { parseDeck } from '../core/import.js';
 import { buildDeckHtml } from '../core/export-html.js';
 import { Stage } from './stage.js';
@@ -29,6 +29,7 @@ export class App {
     this._fileName = null;
     this._dirty = false;
     this._loading = false;       // sopprime il "dirty" durante import
+    this._isWelcome = true;      // il deck iniziale è quello di benvenuto (segue la lingua)
     this._clipboard = null;      // HTML elemento copiato (⌘C/⌘V)
     this.stage = new Stage({
       sceneEl: $('#stage-scene'),
@@ -82,10 +83,14 @@ export class App {
   _wireStage() {
     this.stage.onSelect = (eid) => {
       store.setSelected(eid);
+      this.stage.selectedEid = eid;     // serve allo stage per il "click through"
       this.selection.show(eid);
       this.inspector.render(eid);
+      this._overlapHint(eid);
     };
     this.stage.onBackground = () => this._deselect();
+    this.stage.onEditStart = () => this.selection.suspend();
+    this.stage.onEditEnd = () => this.selection.resume();
     this.stage.onTextCommit = () => {
       this.commitStage('Modifica testo');
       if (store.selectedEid) this.selection.refresh();
@@ -189,6 +194,13 @@ export class App {
       // ⌘S salva anche mentre si edita il testo
       if (meta && e.key.toLowerCase() === 's') { e.preventDefault(); this._save(); return; }
       if (this.stage.isEditing()) return; // lascia lavorare il contenteditable
+      // Tab / ⇧Tab: cicla gli elementi della slide (solo se non sei in un campo
+      // della chrome — inspector/chat — dove Tab deve restare navigazione normale).
+      if (e.key === 'Tab' && store.selectedEid) {
+        const ae = document.activeElement;
+        const inField = ae && (ae.matches('input,textarea,select,[contenteditable="true"]') || ae.closest('.chat,.inspector,.chat-settings'));
+        if (!inField) { e.preventDefault(); this._cycleSelection(e.shiftKey ? -1 : 1); return; }
+      }
       if (meta && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         e.shiftKey ? this._redo() : this._undo();
@@ -284,8 +296,26 @@ export class App {
 
   _deselect() {
     store.setSelected(null);
+    this.stage.selectedEid = null;
     this.selection.hide();
     this.inspector.clear();
+  }
+
+  /** Avvisa (e rende scopribile il gesto) quando l'elemento selezionato ne ha
+   *  altri sovrapposti nello stesso punto: ⌥-click o Tab per raggiungerli. */
+  _overlapHint(eid) {
+    if (this.stage.hasForeignOverlap(eid)) {
+      this._hint('Altri elementi sovrapposti qui: ⌥-click o Tab per raggiungere quelli sotto.');
+    }
+  }
+
+  /** Cicla la selezione fra gli elementi della slide (Tab / ⇧Tab). */
+  _cycleSelection(dir) {
+    const els = this.stage.editableList();
+    if (!els.length) return;
+    const i = els.indexOf(store.selectedEid);
+    const ni = i < 0 ? (dir > 0 ? 0 : els.length - 1) : (i + dir + els.length) % els.length;
+    this.stage.onSelect(els[ni]);
   }
 
   // ---------- undo/redo ----------
@@ -466,10 +496,13 @@ export class App {
     if (btn) { btn.textContent = light ? '☀' : '☾'; btn.title = light ? 'Passa al tema scuro' : 'Passa al tema chiaro'; }
   }
 
-  // ---------- lingua (solo chrome editor, non il deck) ----------
+  // ---------- lingua (chrome editor + deck di benvenuto) ----------
   _initLang() {
     this._lang = this.platform.storage.get('ss-lang') || 'it';
     setLang(this._lang);
+    // il deck di benvenuto iniziale segue la lingua (qui siamo prima di subscribe:
+    // setDeck non marca dirty). Il contenuto degli altri deck NON viene tradotto.
+    if (this._isWelcome && this._lang === 'en') store.setDeck(welcomeDeck('en'));
     this._applyLang();
   }
   _toggleLang() {
@@ -477,6 +510,17 @@ export class App {
     this.platform.storage.set('ss-lang', this._lang);
     setLang(this._lang);
     this._applyLang();
+    // se sei ancora sul deck di benvenuto (non modificato) lo ricarico tradotto
+    if (this._isWelcome && !this._dirty) this._reloadWelcome();
+  }
+  /** Ricarica il deck di benvenuto nella lingua corrente, preservando la slide. */
+  _reloadWelcome() {
+    const idx = store.currentIndex;
+    this._loading = true;             // sopprime il dirty del setDeck
+    store.setDeck(welcomeDeck(this._lang));
+    this._loading = false;
+    this.renderAll();
+    this.gotoSlide(Math.min(idx, store.deck.slides.length - 1), true);
   }
   _applyLang() {
     applyI18n(document.body);                 // traduce/ripristina il DOM montato
@@ -583,6 +627,7 @@ export class App {
     this._loading = false;
     this.platform.discardCurrent();
     this._fileName = null;
+    this._isWelcome = false; // deck vuoto, non più il benvenuto
     this._dirty = true; // nuovo deck = non ancora salvato
     this._updateFileStatus();
     this._hint(this.platform.capabilities.directSave ? 'Nuovo deck. ⌘S per salvarlo su un file.' : 'Nuovo deck creato.');
@@ -612,6 +657,7 @@ export class App {
       pruneAssets(collectAssetIds(deck.slides.map((s) => s.html)));
       this.renderAll();
       this._fileName = name || null;
+      this._isWelcome = false; // ora c'è un deck reale: la lingua non lo tocca più
       this._dirty = false;
       const warn = deck._warnings?.length ? ` ⚠ ${deck._warnings[0]}` : '';
       const where = bound ? ' — le modifiche si salveranno su questo file' : '';
@@ -665,12 +711,10 @@ export class App {
       this._saveT = setTimeout(() => {
         this.platform.syncDocument(buildDeckHtml(store.deck)).catch(() => { /* host non raggiungibile */ });
       }, 600);
-      return;
     }
-    if (this.platform.canDirectSave()) { // autosave sul file aperto (debounce)
-      clearTimeout(this._saveT);
-      this._saveT = setTimeout(() => this._save(), 1200);
-    }
+    // Web: NIENTE autosave. L'autosave su file richiamava il permesso File System
+    // Access → popup del browser a ogni modifica (bloccante). Il salvataggio su web
+    // è solo esplicito (⌘S / "Salva"); il pallino ● in toolbar segnala le modifiche.
   }
 
   _updateFileStatus() {

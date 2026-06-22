@@ -47,7 +47,10 @@ export class Stage {
     this.onTextCommit = () => {};
     this.onBackground = () => {};
     this.onOverflow = () => {};
+    this.onEditStart = () => {};
+    this.onEditEnd = () => {};
     this._editingEid = null;
+    this.selectedEid = null;     // eid selezionato (lo aggiorna l'App via onSelect)
 
     this.canvas.style.width = `${CANVAS.w}px`;
     this.canvas.style.height = `${CANVAS.h}px`;
@@ -130,19 +133,18 @@ export class Stage {
 
   _wireEvents() {
     const doc = this.doc;
-    // Click: seleziona l'elemento più vicino con eid; sul body → deseleziona.
+    // Click: seleziona l'elemento al punto. ⌥/⌘-click = "click through" (elemento
+    // sotto a quelli sovrapposti). Le coord. dell'evento sono già nello spazio
+    // logico dell'iframe (1280×720), quindi si passano dirette a pickAt.
     doc.addEventListener('click', (e) => {
-      const t = e.target.closest(`[${EDITOR_ATTR}]`);
-      // blocca link/navigazione interni al deck
       const a = e.target.closest('a');
-      if (a) e.preventDefault();
-      if (!t || t.id === 'ss-slide') {
-        if (this._editingEid) this._endEditing();
-        this.onBackground();
-        return;
+      if (a) e.preventDefault(); // niente navigazione interna al deck
+      // click dentro al testo in editing → lascia muovere il caret, non riselezionare
+      if (this._editingEid) {
+        const ed = this.getElement(this._editingEid);
+        if (ed && ed.contains(e.target)) return;
       }
-      if (this._editingEid && this._editingEid !== t.getAttribute(EDITOR_ATTR)) this._endEditing();
-      this.onSelect(t.getAttribute(EDITOR_ATTR));
+      this.pickAt(e.clientX, e.clientY, e.altKey || e.metaKey);
     });
 
     // Doppio click: editing testo inline.
@@ -151,6 +153,86 @@ export class Stage {
       if (!t || t.id === 'ss-slide') return;
       this._beginEditing(t);
     });
+  }
+
+  /** Converte coordinate finestra-editor → coordinate logiche dell'iframe (per i
+   *  click inoltrati dal box di selezione, che vive nel documento dell'editor). */
+  clientToLogical(clientX, clientY) {
+    const fr = this.frame.getBoundingClientRect();
+    const s = this.scale || 1;
+    return { x: (clientX - fr.left) / s, y: (clientY - fr.top) / s };
+  }
+
+  /** Elementi editabili impilati sotto un punto logico, dal più in alto al più in
+   *  basso (dedup per elemento; esclude #ss-slide). Sospende temporaneamente i
+   *  pointer-events per "vedere" anche gli elementi coperti. */
+  _stackAt(lx, ly) {
+    const doc = this.doc;
+    if (!doc) return [];
+    const out = [], touched = [];
+    let node, guard = 0;
+    while (guard++ < 60 && (node = doc.elementFromPoint(lx, ly))) {
+      if (node === doc.documentElement || node === doc.body) break;
+      const sel = node.closest(`[${EDITOR_ATTR}]`);
+      if (sel && sel.id !== 'ss-slide' && !out.includes(sel)) out.push(sel);
+      touched.push([node, node.style.pointerEvents]);
+      node.style.pointerEvents = 'none';
+    }
+    for (const [n, pe] of touched) n.style.pointerEvents = pe; // ripristina
+    return out;
+  }
+
+  /** Seleziona al punto logico (lx,ly). through=true (⌥/⌘) → l'elemento subito
+   *  sotto a quello attualmente selezionato; altrimenti il più in alto. */
+  pickAt(lx, ly, through = false) {
+    const stack = this._stackAt(lx, ly);
+    if (!stack.length) {
+      if (this._editingEid) this._endEditing();
+      this.onBackground();
+      return;
+    }
+    let idx = 0;
+    if (through) {
+      const ci = stack.findIndex((n) => n.getAttribute(EDITOR_ATTR) === this.selectedEid);
+      if (ci >= 0) idx = (ci + 1) % stack.length;
+    }
+    const target = stack[idx];
+    const teid = target.getAttribute(EDITOR_ATTR);
+    if (this._editingEid && this._editingEid !== teid) this._endEditing();
+    this.onSelect(teid);
+  }
+
+  /** eid degli elementi selezionabili in ordine di documento (per Tab/⇧Tab). */
+  editableList() {
+    const root = this.slideEl;
+    if (!root) return [];
+    return [...root.querySelectorAll(`[${EDITOR_ATTR}]`)]
+      .filter((n) => n.id !== 'ss-slide')
+      .map((n) => n.getAttribute(EDITOR_ATTR));
+  }
+
+  /** Quanti elementi editabili stanno impilati al centro di `eid` (incl. antenati). */
+  overlapCountFor(eid) {
+    const r = this.rectOf(eid);
+    if (!r) return 0;
+    return this._stackAt(r.x + r.w / 2, r.y + r.h / 2).length;
+  }
+
+  /** true se al centro di `eid` c'è un altro elemento che NON è né antenato né
+   *  discendente (sovrapposizione "vera", non semplice annidamento) → vale la
+   *  pena suggerire ⌥-click / Tab. */
+  hasForeignOverlap(eid) {
+    const sel = this.getElement(eid);
+    const r = this.rectOf(eid);
+    if (!sel || !r) return false;
+    return this._stackAt(r.x + r.w / 2, r.y + r.h / 2)
+      .some((n) => n !== sel && !sel.contains(n) && !n.contains(sel));
+  }
+
+  /** Avvia l'editing testo dell'elemento dato (usato dal doppio click sul box). */
+  beginEditingEid(eid) {
+    const elm = this.getElement(eid);
+    if (elm && elm.id !== 'ss-slide') this._beginEditing(elm);
   }
 
   _beginEditing(elm) {
@@ -168,6 +250,7 @@ export class Stage {
     elm.addEventListener('paste', onPaste);
     const onBlur = () => { elm.removeEventListener('paste', onPaste); this._endEditing(); };
     elm.addEventListener('blur', onBlur, { once: true });
+    this.onEditStart(); // l'App nasconde il box di selezione (caret libero)
   }
 
   _endEditing() {
@@ -180,6 +263,7 @@ export class Stage {
       elm.classList.remove('ss-editing');
     }
     this.onTextCommit();
+    this.onEditEnd(); // l'App ripristina il box di selezione
   }
 
   isEditing() {

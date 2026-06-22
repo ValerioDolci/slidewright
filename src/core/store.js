@@ -11,12 +11,12 @@
  * lo store resta volutamente "stupido".
  */
 
-import { cloneDeck, createDeck } from './model.js';
+import { cloneDeck, welcomeDeck } from './model.js';
 
 const HISTORY_CAP = 120;
 
 function createStore() {
-  let deck = createDeck();
+  let deck = welcomeDeck();
   let currentIndex = 0;
   let selectedEid = null;
   const past = [];

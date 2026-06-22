@@ -62,7 +62,8 @@ export const WORKSPACE_HTML = `
         <div>
           <h4>Gesti</h4>
           <ul>
-            <li><b>Doppio click</b> su un testo → modifica</li>
+            <li><b>Click</b> → seleziona · <b>Doppio click</b> su un testo → modifica</li>
+            <li><b>⌥-click</b> → seleziona l'elemento <b>sotto</b> a quelli sovrapposti</li>
             <li><b>Trascina</b> un elemento → sposta <span class="help__k">snap automatico · Alt = libero</span></li>
             <li><b>Maniglie</b> → ridimensiona <span class="help__k">Shift = mantieni proporzioni</span></li>
             <li><b>Trascina un file .html</b> nella finestra → importa deck</li>
@@ -74,6 +75,7 @@ export const WORKSPACE_HTML = `
             <li><span class="help__k">⌘S</span> salva sul file</li>
             <li><span class="help__k">⌘Z</span> / <span class="help__k">⇧⌘Z</span> annulla / ripeti</li>
             <li><span class="help__k">⌘C</span> / <span class="help__k">⌘V</span> / <span class="help__k">⌘D</span> copia / incolla / duplica</li>
+            <li><span class="help__k">Tab</span> / <span class="help__k">⇧Tab</span> scorri gli elementi della slide</li>
             <li><span class="help__k">← ↑ → ↓</span> sposta 1px <span class="help__k">Shift = 10px</span></li>
             <li><span class="help__k">Canc</span> elimina · <span class="help__k">Esc</span> deseleziona</li>
           </ul>
