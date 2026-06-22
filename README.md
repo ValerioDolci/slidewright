@@ -107,3 +107,7 @@ extension/          Estensione VS Code (Node): Custom Editor + vscode.lm + messa
   sono rimossi in fase di export: l'HTML in uscita è pulito.
 - Target primario: i **deck** (`<section class="slide">`). I documenti HTML lunghi
   sono un caso secondario (importati come singola slide).
+
+## Licenza
+
+[MIT](LICENSE) © Valerio Dolci
