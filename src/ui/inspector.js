@@ -55,6 +55,36 @@ export class Inspector {
 
     const body = el('div', { class: 'insp' });
 
+    // ---- Immagine (crop + forma) — solo per <img> ----
+    if (elm.tagName === 'IMG') {
+      // per croppare serve un box fisso: se l'altezza è "auto", la congelo a quella attuale
+      const ensureBox = () => {
+        if (!elm.style.height || elm.style.height === 'auto') {
+          elm.style.width = `${Math.round(elm.offsetWidth)}px`;
+          elm.style.height = `${Math.round(elm.offsetHeight)}px`;
+        }
+      };
+      const SHAPES = {
+        rect:   { ic: '▭', clip: 'none', r: '0' },
+        round:  { ic: '▢', clip: 'none', r: '18px' },
+        circle: { ic: '●', clip: 'circle(50%)', r: '0' },
+        rhomb:  { ic: '◆', clip: 'polygon(50% 0%,100% 50%,50% 100%,0% 50%)', r: '0' },
+        hex:    { ic: '⬡', clip: 'polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%)', r: '0' },
+      };
+      body.append(this._group('Immagine', [
+        this._row('Forma', this._segmented(Object.entries(SHAPES).map(([k, s]) => [k, s.ic]), '', (k) => {
+          ensureBox();
+          elm.style.objectFit = 'cover';            // riempi il box → la forma "ritaglia"
+          elm.style.clipPath = SHAPES[k].clip;
+          elm.style.borderRadius = SHAPES[k].r;
+          this.liveRefresh(); this.commit();
+        })),
+        this._row('Adatta', this._segmented([['cover', 'Riempi'], ['contain', 'Adatta']], cs.objectFit, (v) => {
+          ensureBox(); setStyle('objectFit', v, true);
+        })),
+      ]));
+    }
+
     // ---- Testo ----
     body.append(this._group('Testo', [
       this._row('Font', this._select(FONTS, cs.fontFamily, (v, c) => setStyle('fontFamily', v, c))),

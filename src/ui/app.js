@@ -17,11 +17,12 @@ import { Inspector } from './inspector.js';
 import { SelectionLayer } from './selection.js';
 import { ChatPanel } from './chat.js';
 import { runAgentTurn } from '../core/agent.js';
-import { $, readFileText, readFileDataURL } from '../util/dom.js';
+import { $, el, readFileText, readFileDataURL } from '../util/dom.js';
 import { EDITOR_ATTR, uid } from '../util/id.js';
 import { externalize, inline, describeAssetsForLlm, collectAssetIds, pruneAssets } from '../core/assets.js';
 import { sanitizeHtml } from '../core/sanitize.js';
 import { setLang, getLang, t, applyI18n } from '../core/i18n.js';
+import { ICONS, iconSvg } from '../core/icons.js';
 
 export class App {
   constructor({ platform }) {
@@ -165,11 +166,13 @@ export class App {
     on('undo', () => this._undo());
     on('redo', () => this._redo());
     on('add-text', () => this._addText());
-    on('add-shape', (e) => this._openShapeMenu(e.currentTarget));
+    on('add-shape', (e) => this._openMenu($('#shape-menu'), e.currentTarget));
     document.querySelectorAll('#shape-menu .shape-menu__item').forEach((b) => {
       b.addEventListener('click', () => { $('#shape-menu').hidden = true; this._addShape(b.dataset.shape); });
     });
     on('add-image', () => $('#image-input').click());
+    this._buildIconMenu();
+    on('add-icon', (e) => this._openMenu($('#icon-menu'), e.currentTarget));
     on('add-slide', () => this._addSlide());
     on('fit-slide', () => this._toggleFit());
     on('present', () => this._present());
@@ -438,14 +441,13 @@ export class App {
   }
 
   /** Apre il menù forme sotto il bottone (toggle, chiude con click fuori / Esc). */
-  _openShapeMenu(btn) {
-    const m = $('#shape-menu');
+  /** Apre un popover-menù sotto il bottone (toggle, chiude con click-fuori / Esc). */
+  _openMenu(m, btn) {
     if (!m) return;
     if (!m.hidden) { m.hidden = true; return; }
     const r = btn.getBoundingClientRect();
     m.hidden = false;
-    // tieni il menù dentro il viewport
-    const w = m.offsetWidth || 172;
+    const w = m.offsetWidth || 172; // tieni il menù dentro il viewport
     m.style.left = `${Math.round(Math.min(r.left, window.innerWidth - w - 8))}px`;
     m.style.top = `${Math.round(r.bottom + 6)}px`;
     const close = (ev) => {
@@ -459,6 +461,35 @@ export class App {
       document.addEventListener('pointerdown', close, true);
       document.addEventListener('keydown', close, true);
     }, 0);
+  }
+
+  /** Popola il menù icone da core/icons.js e cabla i click. */
+  _buildIconMenu() {
+    const m = $('#icon-menu');
+    if (!m) return;
+    Object.keys(ICONS).forEach((key) => {
+      const b = el('button', {
+        class: 'icon-menu__item', dataset: { icon: key },
+        title: ICONS[key].label, 'aria-label': ICONS[key].label, role: 'menuitem',
+      });
+      b.innerHTML = iconSvg(key, { width: 22, height: 22 });
+      b.style.color = ICONS[key].color;
+      b.addEventListener('click', () => { m.hidden = true; this._addIcon(key); });
+      m.append(b);
+    });
+  }
+
+  /** Inserisce un'icona (SVG inline) come elemento libero, ricolorabile dall'inspector. */
+  _addIcon(key) {
+    const ic = ICONS[key];
+    if (!ic) return;
+    const tpl = this.stage.doc.createElement('template');
+    tpl.innerHTML = iconSvg(key, { width: 80, height: 80 });
+    const svg = tpl.content.firstElementChild;
+    if (!svg) return;
+    svg.style.color = ic.color;       // colore di default (poi modificabile)
+    svg.style.height = '80px';
+    this._addFree(svg, 80, 80);
   }
 
   /** Inserisce una forma libera del tipo dato (CSS puro, niente dipendenze). */

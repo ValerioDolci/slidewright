@@ -23,6 +23,7 @@
     import { rgbaParts, hexToRgba } from '/src/ui/inspector.js';
     import { Stage } from '/src/ui/stage.js';
     import { EDITOR_ATTR } from '/src/util/id.js';
+    import { ICONS, iconSvg } from '/src/core/icons.js';
 
     const log = []; let pass = 0, fail = 0;
     const A = (cond, msg) => {
@@ -80,6 +81,11 @@
       A(idDeck.slides[0].elId === 'slide-9' && !idDeck.slides[1].elId, 'id: elId catturato da #slide-9 (vuoto se assente)');
       A(buildDeckHtml(idDeck).includes('id="slide-9"'), 'id: export HTML preserva l\'id');
       A(buildPrintHtml(idDeck, { pageBackground: '' }).includes('id="slide-9"'), 'id: export PDF preserva l\'id');
+
+      // ---- libreria icone ----
+      A(Object.keys(ICONS).length >= 12, `icone: raccolta ≥12 (${Object.keys(ICONS).length})`);
+      A(/^<svg/.test(iconSvg('warning')) && /fill="currentColor"/.test(iconSvg('warning')), 'icone: iconSvg genera SVG ricolorabile (currentColor)');
+      A(iconSvg('nope') === '', 'icone: chiave inesistente → stringa vuota');
 
       // ---- credito cucito negli export (neutro, sempre presente) ----
       A(/Slidewright/.test(buildDeckHtml(idDeck)) && /Slidewright/.test(buildPrintHtml(idDeck, { pageBackground: '' })), 'credito: HTML e PDF esportati contengono il credito Slidewright');

@@ -38,6 +38,7 @@ export const WORKSPACE_HTML = `
       <button class="btn" data-action="add-text" title="Aggiungi una casella di testo"><span class="btn__ic">T</span> Testo</button>
       <button class="btn" data-action="add-shape" title="Aggiungi una forma" aria-haspopup="true"><span class="btn__ic">▢</span> Forma <span class="btn__caret" aria-hidden="true">▾</span></button>
       <button class="btn" data-action="add-image" title="Aggiungi un'immagine"><span class="btn__ic">▣</span> Immagine</button>
+      <button class="btn" data-action="add-icon" title="Aggiungi un'icona / simbolo" aria-haspopup="true"><span class="btn__ic">★</span> Icona <span class="btn__caret" aria-hidden="true">▾</span></button>
     </div>
 
     <div class="topbar__spacer">
@@ -130,6 +131,9 @@ export const WORKSPACE_HTML = `
     <button class="shape-menu__item" data-shape="triangle" role="menuitem"><span class="shape-menu__ic" aria-hidden="true">▲</span> Triangolo</button>
     <button class="shape-menu__item" data-shape="arrow" role="menuitem"><span class="shape-menu__ic" aria-hidden="true">➜</span> Freccia</button>
   </div>
+
+  <!-- Menù icone (apre da "Icona"); le voci le inietta l'App da core/icons.js -->
+  <div id="icon-menu" class="icon-menu" hidden role="menu" aria-label="Icone"></div>
 
   <input type="file" id="image-input" accept="image/*" hidden />
 `;

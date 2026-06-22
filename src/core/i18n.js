@@ -51,6 +51,25 @@ const EN = {
   'Linea': 'Line',
   'Triangolo': 'Triangle',
   'Freccia': 'Arrow',
+  // ---- icone / simboli ----
+  'Icona': 'Icon',
+  "Aggiungi un'icona / simbolo": 'Add an icon / symbol',
+  'Attenzione': 'Warning',
+  'Pericolo': 'Danger',
+  'Successo': 'Success',
+  'Errore': 'Error',
+  'Stella': 'Star',
+  'Idea': 'Idea',
+  'Obiettivo': 'Target',
+  'Sicurezza': 'Lock',
+  'Approvato': 'Approved',
+  'Bandiera': 'Flag',
+  'Energia': 'Energy',
+  'Tempo': 'Time',
+  'Cuore': 'Heart',
+  // ---- immagine (crop) ----
+  'Adatta': 'Fit',
+  'Riempi': 'Fill',
 
   // ---- toolbar: destra ----
   'File di lavoro': 'Working file',
