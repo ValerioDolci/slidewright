@@ -9,6 +9,7 @@
 import { el } from '../util/dom.js';
 import { PROVIDER_PRESETS } from '../core/llm.js';
 import { uid } from '../util/id.js';
+import { t } from '../core/i18n.js';
 
 const LS_CONN = 'ss-llm-connections';
 const LS_ACTIVE = 'ss-llm-active';
@@ -59,7 +60,7 @@ export class ChatPanel {
     this.panel = el('div', { class: 'chat', hidden: 'hidden' }, [
       el('div', { class: 'chat__head' }, [
         el('span', { class: 'chat__title', text: '✨ Agente' }),
-        el('span', { class: 'chat__conn', id: 'chat-conn' }),
+        el('span', { class: 'chat__conn', id: 'chat-conn', dataset: { i18nSkip: '' } }),
         el('button', { class: 'chat__icon', title: 'Impostazioni connessioni', text: '⚙', onClick: () => this._openSettings() }),
         el('button', { class: 'chat__icon', title: 'Chiudi', text: '✕', onClick: () => this.close() }),
       ]),
@@ -86,7 +87,7 @@ export class ChatPanel {
   _refreshConnLabel() {
     const c = this.getActiveConnection();
     const l = this.panel.querySelector('#chat-conn');
-    if (l) l.textContent = c ? `${c.name} · ${c.model}` : 'nessuna connessione';
+    if (l) l.textContent = c ? `${c.name} · ${c.model}` : t('nessuna connessione');
   }
 
   // ---------- messaggi ----------
@@ -109,7 +110,7 @@ export class ChatPanel {
     this.busy = b;
     this.sendBtn.disabled = b;
     this.input.disabled = b;
-    this.sendBtn.textContent = b ? '…' : 'Invia';
+    this.sendBtn.textContent = b ? '…' : t('Invia');
   }
 
   _submit() {
@@ -171,7 +172,7 @@ export class ChatPanel {
       draft.model = fModel.value.trim();
       draft.apiKey = fKey.value;
       if (draft.type !== 'vscode-lm') draft.type = 'openai';
-      if (draft.type !== 'vscode-lm' && (!draft.baseUrl || !draft.model)) { alert('Servono almeno Base URL e Modello.'); return; }
+      if (draft.type !== 'vscode-lm' && (!draft.baseUrl || !draft.model)) { alert(t('Servono almeno Base URL e Modello.')); return; }
       if (draft.id) {
         const i = this.connections.findIndex((c) => c.id === draft.id);
         this.connections[i] = draft;

@@ -41,11 +41,12 @@ export const WORKSPACE_HTML = `
     </div>
 
     <div class="topbar__spacer">
-      <span class="topbar__file" id="file-status" title="File di lavoro"></span>
+      <span class="topbar__file" id="file-status" data-i18n-skip title="File di lavoro"></span>
     </div>
 
     <div class="topbar__group">
       <button class="btn btn--ghost" data-action="chat" title="Apri la chat con l'agente">✨ Agente</button>
+      <button class="btn btn--icon" data-action="lang" data-i18n-skip title="Lingua interfaccia / Interface language" aria-label="Lingua">IT</button>
       <button class="btn btn--icon" data-action="theme" title="Tema chiaro / scuro" aria-label="Tema">☾</button>
       <button class="btn btn--icon" data-action="help" title="Aiuto: gesti e scorciatoie" aria-label="Aiuto">?</button>
       <button class="btn btn--ghost" data-action="present" title="Presenta a schermo intero">Presenta ▸</button>
@@ -100,16 +101,16 @@ export const WORKSPACE_HTML = `
         </div>
       </div>
       <div class="stage__bar">
-        <span class="stage__zoom" id="zoom-label">—</span>
+        <span class="stage__zoom" id="zoom-label" data-i18n-skip>—</span>
         <span class="stage__warn" id="stage-warn" hidden>⚠ contenuto oltre i bordi (verrà tagliato in stampa)</span>
-        <span class="stage__hint" id="stage-hint">Importa un deck o crea un nuovo deck per iniziare</span>
+        <span class="stage__hint" id="stage-hint" data-i18n-skip>Importa un deck o crea un nuovo deck per iniziare</span>
       </div>
     </section>
 
     <!-- RIGHT: inspector -->
     <aside class="inspector" id="inspector" data-reveal>
       <div class="panel__head">
-        <span class="panel__title" id="inspector-title">Proprietà</span>
+        <span class="panel__title" id="inspector-title" data-i18n-skip>Proprietà</span>
       </div>
       <div class="inspector__body" id="inspector-body">
         <p class="inspector__empty">Nessun elemento selezionato.<br />Clicca un elemento sulla slide.</p>

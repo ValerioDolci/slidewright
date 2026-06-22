@@ -5,6 +5,7 @@
  */
 
 import { el } from '../util/dom.js';
+import { t } from '../core/i18n.js';
 
 const FONTS = [
   ['', '— eredita —'],
@@ -30,7 +31,7 @@ export class Inspector {
   }
 
   clear() {
-    this.titleEl.textContent = 'Proprietà';
+    this.titleEl.textContent = t('Proprietà');
     this.bodyEl.replaceChildren(
       el('p', { class: 'inspector__empty', html: 'Nessun elemento selezionato.<br/>Clicca un elemento sulla slide.' })
     );

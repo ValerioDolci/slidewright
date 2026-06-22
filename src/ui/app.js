@@ -21,6 +21,7 @@ import { $, readFileText, readFileDataURL } from '../util/dom.js';
 import { EDITOR_ATTR, uid } from '../util/id.js';
 import { externalize, inline, describeAssetsForLlm, collectAssetIds, pruneAssets } from '../core/assets.js';
 import { sanitizeHtml } from '../core/sanitize.js';
+import { setLang, getLang, t, applyI18n } from '../core/i18n.js';
 
 export class App {
   constructor({ platform }) {
@@ -49,6 +50,7 @@ export class App {
     this._wireKeyboard();
     this._wireDnd();
     this._initTheme();
+    this._initLang();
 
     store.subscribe((reason) => this._onStore(reason));
     // Con host "nativeSave" (VS Code) dirty/save sono nativi: niente beforeunload
@@ -165,6 +167,7 @@ export class App {
     on('help-close', () => { help.hidden = true; });
     help.addEventListener('click', (e) => { if (e.target === help) help.hidden = true; });
     on('theme', () => this._toggleTheme());
+    on('lang', () => this._toggleLang());
     on('chat', () => this.chat.toggle());
 
     $('#image-input').addEventListener('change', (e) => this._onImageFile(e));
@@ -463,6 +466,30 @@ export class App {
     if (btn) { btn.textContent = light ? '☀' : '☾'; btn.title = light ? 'Passa al tema scuro' : 'Passa al tema chiaro'; }
   }
 
+  // ---------- lingua (solo chrome editor, non il deck) ----------
+  _initLang() {
+    this._lang = this.platform.storage.get('ss-lang') || 'it';
+    setLang(this._lang);
+    this._applyLang();
+  }
+  _toggleLang() {
+    this._lang = getLang() === 'en' ? 'it' : 'en';
+    this.platform.storage.set('ss-lang', this._lang);
+    setLang(this._lang);
+    this._applyLang();
+  }
+  _applyLang() {
+    applyI18n(document.body);                 // traduce/ripristina il DOM montato
+    const btn = document.querySelector('[data-action="lang"]');
+    if (btn) btn.textContent = this._lang.toUpperCase();
+    // nodi gestiti da codice (data-i18n-skip): risincronizza alla nuova lingua
+    if (this._lastHintMsg) this._hint(this._lastHintMsg);
+    if (document.querySelector('#inspector-body .inspector__empty')) {
+      const it = $('#inspector-title'); if (it) it.textContent = t('Proprietà');
+    }
+    this.chat?._refreshConnLabel?.();
+  }
+
   async _onImageFile(e) {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -538,7 +565,7 @@ export class App {
   // ---------- file / deck ----------
   async _confirmDiscard() {
     if (!this._dirty) return true;
-    return this.platform.confirm('Hai modifiche non salvate. Continuare e perderle?');
+    return this.platform.confirm(t('Hai modifiche non salvate. Continuare e perderle?'));
   }
 
   async _open() {
@@ -683,7 +710,7 @@ export class App {
   }
 
   // ---------- misc ----------
-  _hint(msg) { const h = $('#stage-hint'); if (h) h.textContent = msg; }
+  _hint(msg) { this._lastHintMsg = msg; const h = $('#stage-hint'); if (h) h.textContent = t(msg); }
   _updateZoom() {
     const z = $('#zoom-label');
     if (z) z.textContent = `${Math.round(this.stage.scale * 100)}%`;
