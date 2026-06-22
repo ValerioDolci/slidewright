@@ -212,6 +212,24 @@ button { font-family: inherit; }
 .sel__move svg { width: 15px; height: 15px; display: block; }
 .sel--toptight .sel__move { transform: translate(-50%, 5px); }
 
+/* ---------------- menù forme ---------------- */
+.shape-menu {
+  position: fixed; z-index: 61; min-width: 172px;
+  background: linear-gradient(180deg, var(--ink-800), var(--ink-850));
+  border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow-2); padding: 5px;
+}
+.shape-menu[hidden] { display: none; }
+.shape-menu__item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 7px 10px; border: 0; border-radius: var(--radius); cursor: pointer;
+  background: transparent; color: var(--fg-dim); font-size: 13px;
+  font-family: inherit; text-align: left;
+}
+.shape-menu__item:hover { background: rgba(180,83,9,0.14); color: var(--fg); }
+.shape-menu__ic { width: 18px; text-align: center; color: var(--amber-bright); font-size: 14px; }
+.btn__caret { opacity: .7; font-size: 10px; }
+
 /* ---------------- inspector ---------------- */
 .inspector {
   background: var(--ink-850); border-left: 1px solid var(--line);

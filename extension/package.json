@@ -2,7 +2,7 @@
   "name": "slidewright",
   "displayName": "Slide Studio",
   "description": "Editor visuale per deck di slide HTML: riordino, editing testo e grafico, export, agente LLM (Copilot via vscode.lm).",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "publisher": "valeriodolci",
   "license": "SEE LICENSE IN LICENSE.txt",
   "repository": { "type": "git", "url": "https://github.com/ValerioDolci/slidewright" },

@@ -36,7 +36,7 @@ export const WORKSPACE_HTML = `
       <button class="btn btn--icon" data-action="redo" title="Ripeti (⇧⌘Z)" disabled>↷</button>
       <span class="topbar__sep"></span>
       <button class="btn" data-action="add-text" title="Aggiungi una casella di testo"><span class="btn__ic">T</span> Testo</button>
-      <button class="btn" data-action="add-box" title="Aggiungi una forma"><span class="btn__ic">▢</span> Forma</button>
+      <button class="btn" data-action="add-shape" title="Aggiungi una forma" aria-haspopup="true"><span class="btn__ic">▢</span> Forma <span class="btn__caret" aria-hidden="true">▾</span></button>
       <button class="btn" data-action="add-image" title="Aggiungi un'immagine"><span class="btn__ic">▣</span> Immagine</button>
     </div>
 
@@ -119,6 +119,15 @@ export const WORKSPACE_HTML = `
       </div>
     </aside>
   </main>
+
+  <!-- Menù forme (apre da "Forma") -->
+  <div id="shape-menu" class="shape-menu" hidden role="menu" aria-label="Forme">
+    <button class="shape-menu__item" data-shape="rect" role="menuitem"><span class="shape-menu__ic" aria-hidden="true">▭</span> Rettangolo</button>
+    <button class="shape-menu__item" data-shape="ellipse" role="menuitem"><span class="shape-menu__ic" aria-hidden="true">⬭</span> Ellisse</button>
+    <button class="shape-menu__item" data-shape="line" role="menuitem"><span class="shape-menu__ic" aria-hidden="true">━</span> Linea</button>
+    <button class="shape-menu__item" data-shape="triangle" role="menuitem"><span class="shape-menu__ic" aria-hidden="true">▲</span> Triangolo</button>
+    <button class="shape-menu__item" data-shape="arrow" role="menuitem"><span class="shape-menu__ic" aria-hidden="true">➜</span> Freccia</button>
+  </div>
 
   <input type="file" id="image-input" accept="image/*" hidden />
 `;

@@ -165,7 +165,10 @@ export class App {
     on('undo', () => this._undo());
     on('redo', () => this._redo());
     on('add-text', () => this._addText());
-    on('add-box', () => this._addBox());
+    on('add-shape', (e) => this._openShapeMenu(e.currentTarget));
+    document.querySelectorAll('#shape-menu .shape-menu__item').forEach((b) => {
+      b.addEventListener('click', () => { $('#shape-menu').hidden = true; this._addShape(b.dataset.shape); });
+    });
     on('add-image', () => $('#image-input').click());
     on('add-slide', () => this._addSlide());
     on('present', () => this._present());
@@ -365,6 +368,57 @@ export class App {
     else Object.assign(d.style, { background: 'rgba(180,83,9,0.18)', border: '1px solid rgba(180,83,9,0.5)', borderRadius: '14px' });
     d.style.height = '160px';
     this._addFree(d, 320, 160);
+  }
+
+  /** Apre il menù forme sotto il bottone (toggle, chiude con click fuori / Esc). */
+  _openShapeMenu(btn) {
+    const m = $('#shape-menu');
+    if (!m) return;
+    if (!m.hidden) { m.hidden = true; return; }
+    const r = btn.getBoundingClientRect();
+    m.hidden = false;
+    // tieni il menù dentro il viewport
+    const w = m.offsetWidth || 172;
+    m.style.left = `${Math.round(Math.min(r.left, window.innerWidth - w - 8))}px`;
+    m.style.top = `${Math.round(r.bottom + 6)}px`;
+    const close = (ev) => {
+      if (ev.type === 'keydown' && ev.key !== 'Escape') return;
+      if (ev.type === 'pointerdown' && (m.contains(ev.target) || btn.contains(ev.target))) return;
+      m.hidden = true;
+      document.removeEventListener('pointerdown', close, true);
+      document.removeEventListener('keydown', close, true);
+    };
+    setTimeout(() => {
+      document.addEventListener('pointerdown', close, true);
+      document.addEventListener('keydown', close, true);
+    }, 0);
+  }
+
+  /** Inserisce una forma libera del tipo dato (CSS puro, niente dipendenze). */
+  _addShape(kind) {
+    if (kind === 'rect') return this._addBox(); // mantiene la "forma intelligente" (eredita card)
+    const d = this.stage.doc.createElement('div');
+    const fill = 'rgba(180,83,9,0.9)';
+    if (kind === 'ellipse') {
+      const look = this._sampleBoxStyle();
+      if (look) Object.assign(d.style, look); else d.style.background = fill;
+      d.style.borderRadius = '50%';
+      d.style.height = '200px';
+      return this._addFree(d, 200, 200);
+    }
+    if (kind === 'line') {
+      Object.assign(d.style, { background: fill, height: '4px', borderRadius: '2px' });
+      return this._addFree(d, 360, 4);
+    }
+    if (kind === 'triangle') {
+      Object.assign(d.style, { background: fill, height: '180px', clipPath: 'polygon(50% 0%, 100% 100%, 0% 100%)' });
+      return this._addFree(d, 200, 180);
+    }
+    if (kind === 'arrow') {
+      Object.assign(d.style, { background: fill, height: '90px',
+        clipPath: 'polygon(0% 35%, 62% 35%, 62% 12%, 100% 50%, 62% 88%, 62% 65%, 0% 65%)' });
+      return this._addFree(d, 260, 90);
+    }
   }
 
   /** Stile "look" da una card/forma già presente nella slide (sfondo, bordo,

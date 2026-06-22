@@ -44,6 +44,13 @@ const EN = {
   'Forma': 'Shape',
   "Aggiungi un'immagine": 'Add an image',
   'Immagine': 'Image',
+  // ---- menù forme ----
+  'Forme': 'Shapes',
+  'Rettangolo': 'Rectangle',
+  'Ellisse': 'Ellipse',
+  'Linea': 'Line',
+  'Triangolo': 'Triangle',
+  'Freccia': 'Arrow',
 
   // ---- toolbar: destra ----
   'File di lavoro': 'Working file',
