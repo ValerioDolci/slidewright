@@ -105,6 +105,7 @@ export const WORKSPACE_HTML = `
       <div class="stage__bar">
         <span class="stage__zoom" id="zoom-label" data-i18n-skip>—</span>
         <span class="stage__warn" id="stage-warn" hidden>⚠ contenuto oltre i bordi (verrà tagliato in stampa)</span>
+        <button class="stage__fit" id="stage-fit" data-action="fit-slide" data-i18n-skip title="Adatta la slide al riquadro: la rimpicciolisce per farla stare intera (utile se sfora)">⤢ Adatta</button>
         <span class="stage__hint" id="stage-hint" data-i18n-skip>Importa un deck o crea un nuovo deck per iniziare</span>
       </div>
     </section>

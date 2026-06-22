@@ -71,7 +71,9 @@ export function buildDeckHtml(deck) {
       const cls = ['slide', ...(s.classes || []), idx === 0 ? 'active' : '']
         .filter(Boolean)
         .join(' ');
-      return `      <section class="${cls}">\n${indent(cleanSlideHtml(s.html), 8)}\n      </section>`;
+      const fs = s.fitScale && s.fitScale < 1 ? s.fitScale : 0;
+      const st = fs ? ` style="transform:scale(${fs});transform-origin:top center"` : '';
+      return `      <section class="${cls}"${st}>\n${indent(cleanSlideHtml(s.html), 8)}\n      </section>`;
     })
     .join('\n');
 

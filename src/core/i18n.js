@@ -172,6 +172,12 @@ const EN = {
   'Nuovo deck. ⌘S per salvarlo su un file.': 'New deck. ⌘S to save it to a file.',
   'Nuovo deck creato.': 'New deck created.',
   'Elemento copiato — ⌘V per incollare.': 'Element copied — ⌘V to paste.',
+  '⤢ Adatta': '⤢ Fit',
+  '⤢ Adattata': '⤢ Fitted',
+  'Adatta la slide al riquadro: la rimpicciolisce per farla stare intera (utile se sfora)':
+    'Fit the slide to the frame: scales it down so it fits whole (useful if it overflows)',
+  'La slide è già contenuta nel riquadro.': 'The slide already fits the frame.',
+  'Slide a dimensione piena.': 'Slide at full size.',
   'Altri elementi sovrapposti qui: ⌥-click o Tab per raggiungere quelli sotto.':
     'Overlapping elements here: ⌥-click or Tab to reach the ones below.',
   'HTML esportato (copia separata).': 'HTML exported (separate copy).',

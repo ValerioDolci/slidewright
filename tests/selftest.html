@@ -70,6 +70,11 @@
       const printHtml = buildPrintHtml(dnDeck, { pageBackground: '' });
       A((printHtml.match(/class="slide active/g) || []).length === 2, 'pdf: ogni pagina ha la classe active (slide display:none non escono vuote)');
 
+      // ---- adatta alla slide: il fitScale viene applicato in export PDF e HTML ----
+      const fdeck = { meta: { title: 'T', lang: 'it' }, mode: 'deck', canvas: { w: 1280, h: 720 }, styleCss: '', slides: [{ id: 'a', classes: [], html: '<h1>A</h1>', fitScale: 0.6 }] };
+      A(buildPrintHtml(fdeck, { pageBackground: '' }).includes('scale(0.6)'), 'adatta: PDF applica scale(fitScale)');
+      A(buildDeckHtml(fdeck).includes('scale(0.6)'), 'adatta: export HTML applica scale(fitScale)');
+
       // ---- handler inline (on*) / javascript: ----
       A(!/onerror/i.test(deck.slides[0].html), 'sicurezza: attributo on* (onerror) rimosso in import');
       const cl2 = cleanSlideHtml('<a href="javascript:alert(1)" onclick="x()">y</a>');
@@ -203,6 +208,16 @@
       A(stage.rectOf(xEl.getAttribute(EDITOR_ATTR)).angle === 0, 'rotazione: angolo 0 di default');
       xEl.style.transform = 'rotate(30deg)';
       A(Math.abs(stage.rectOf(xEl.getAttribute(EDITOR_ATTR)).angle - 30) <= 1, 'rotazione: rectOf legge 30°');
+
+      // adatta alla slide: misura della scala + contentScale/effScale al render
+      stage.render({ id: 'tall', classes: [], html: '<div style="height:1400px;background:#333"></div>' }, '', 'deck');
+      await new Promise((r) => setTimeout(r, 30));
+      const mfs = stage.measureFitScale();
+      A(mfs > 0.4 && mfs < 0.6, `adatta: scala ~0.5 per contenuto 2× più alto (${mfs})`);
+      stage.render({ id: 'tall2', classes: [], html: '<div style="height:1400px;background:#333"></div>', fitScale: mfs }, '', 'deck');
+      await new Promise((r) => setTimeout(r, 20));
+      A(Math.abs(stage.contentScale - mfs) < 1e-6, 'adatta: contentScale = fitScale al render');
+      A(Math.abs(stage.effScale - stage.scale * mfs) < 1e-6, 'adatta: effScale = scale × contentScale');
       scene.remove();
 
       // ---- inspector: colore con alpha (no schiacciamento dell'opacità) ----

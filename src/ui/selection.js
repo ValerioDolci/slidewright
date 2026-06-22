@@ -172,7 +172,7 @@ export class SelectionLayer {
     const begin = () => {
       this._ensureAbsolute(elm);
       init = {
-        s: this.stage.scale,
+        s: this.stage.effScale,
         x0: this._num(elm.style.left),
         y0: this._num(elm.style.top),
         w: elm.getBoundingClientRect().width,
@@ -232,7 +232,7 @@ export class SelectionLayer {
     if ((this.stage.rectOf(this.eid)?.angle || 0) !== 0) return this._startResizeRotated(e, dir, elm);
     try { this.box.setPointerCapture(e.pointerId); } catch (_) { /* headless/no-pointer */ }
     this._ensureAbsolute(elm);
-    const sx = e.clientX, sy = e.clientY, s = this.stage.scale;
+    const sx = e.clientX, sy = e.clientY, s = this.stage.effScale;
     const x0 = this._num(elm.style.left), y0 = this._num(elm.style.top);
     const w0 = elm.getBoundingClientRect().width;
     const h0 = elm.getBoundingClientRect().height;
@@ -285,7 +285,7 @@ export class SelectionLayer {
   _startResizeRotated(e, dir, elm) {
     try { this.box.setPointerCapture(e.pointerId); } catch (_) { /* noop */ }
     this._ensureAbsolute(elm);
-    const s = this.stage.scale;
+    const s = this.stage.effScale;
     const ang = (this.stage.rectOf(this.eid)?.angle || 0) * Math.PI / 180;
     const cos = Math.cos(ang), sin = Math.sin(ang);
     const sx = e.clientX, sy = e.clientY;

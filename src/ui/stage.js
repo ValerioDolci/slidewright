@@ -43,6 +43,7 @@ export class Stage {
     this.frame = frameEl;
     this.overlay = overlayEl;
     this.scale = 1;
+    this.contentScale = 1;       // scala "Adatta alla slide" applicata al contenuto
     this.onSelect = () => {};
     this.onTextCommit = () => {};
     this.onBackground = () => {};
@@ -93,8 +94,43 @@ export class Stage {
     this._editingEid = null;
     this._stampEids();
     this._wireEvents();
+    this._applyContentFit(slide);
     this.fitScale();
-    this.onOverflow(mode === 'deck' ? this._checkOverflow() : false);
+    // se la slide è "adattata" (contentScale<1) per definizione ci sta tutta → no badge
+    this.onOverflow(mode === 'deck' && this.contentScale >= 1 ? this._checkOverflow() : false);
+  }
+
+  /** "Adatta alla slide": se la slide ha `fitScale`, scala il contenuto per
+   *  farlo stare intero nel canvas (centrato in alto). `contentScale` serve poi
+   *  alla selezione per i delta di trascinamento/resize. */
+  _applyContentFit(slide) {
+    this.contentScale = 1;
+    const root = this.slideEl;
+    if (!root || this.mode === 'doc') return;
+    const fs = slide && slide.fitScale;
+    if (fs && fs < 1) {
+      root.style.height = 'auto';
+      root.style.bottom = 'auto';
+      root.style.transformOrigin = 'top center';
+      root.style.transform = `scale(${fs})`;
+      this.contentScale = fs;
+    }
+  }
+
+  /** Scala necessaria per far stare l'intera slide corrente nel canvas (≤1).
+   *  Misurata sul render attuale NON adattato (scrollHeight = contenuto pieno). */
+  measureFitScale() {
+    const root = this.slideEl;
+    if (!root) return 1;
+    const h = root.scrollHeight, w = root.scrollWidth;
+    // -6px di margine: evita di rifilare di 1-2px footer/ultimo elemento
+    const s = Math.min((CANVAS.h - 6) / Math.max(h, 1), (CANVAS.w - 6) / Math.max(w, 1), 1);
+    return Math.max(0.2, Math.round(s * 1000) / 1000);
+  }
+
+  /** Scala effettiva del contenuto sullo schermo (canvas × adatta-slide). */
+  get effScale() {
+    return this.scale * (this.contentScale || 1);
   }
 
   /** true se il contenuto IN FLUSSO eccede il canvas logico (verrà tagliato).
