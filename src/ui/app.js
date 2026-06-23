@@ -824,6 +824,7 @@ export class App {
   async _loadDeckFromText(text, name, bound = false) {
     if (!bound) this.platform.discardCurrent(); // drop/fallback: niente handle stantio del file precedente
     this._loading = true;
+    const tok = (this._loadTok = (this._loadTok || 0) + 1); // anti-race: due load ravvicinati
     try {
       const deck = parseDeck(text);
       deck.meta.title = deck.meta.title || name.replace(/\.html?$/i, '');
@@ -833,6 +834,7 @@ export class App {
       if (!deck._canvasFromMeta) {
         try {
           const det = await detectDeckCanvas(deck.styleCss, deck.slides[0]);
+          if (tok !== this._loadTok) return; // un load più recente ha vinto → abbandona
           deck.canvas = { w: det.w, h: det.h };
           deck._warnings = deck._warnings || [];
           if (det.kind === 'fixed' && (det.w !== CANVAS.w || det.h !== CANVAS.h)) {
