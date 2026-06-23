@@ -71,12 +71,28 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden}
 .ss-deck > .slide.active{opacity:1;visibility:visible;pointer-events:auto}`;
 
 // --- JS dentro l'iframe: naviga le slide + espone window.__ssNav alla shell ---
-const INNER_JS = `(function(){
+const innerJs = (cw, ch) => `(function(){
+  var W=${cw},H=${ch};
   var slides=[].slice.call(document.querySelectorAll('.ss-deck > .slide'));
   if(!slides.length)return;
+  // [F4] se il contenuto IN-FLUSSO di una slide sfora il canvas, la scala per starci INTERA
+  // (uniforme, top-left). IDENTICO all'editor (_applyOverflowFit): ignora absolute/fixed
+  // (grafica decorativa che sborda di proposito). Slide conformi: nessun transform.
+  function fit(sec){
+    sec.style.removeProperty('transform'); // reset → misura pulita (no transform residuo)
+    var base=sec.getBoundingClientRect(), maxB=0, maxR=0;
+    (function walk(n){var cc=n.children;for(var k=0;k<cc.length;k++){var c=cc[k],cs=getComputedStyle(c);
+      if(cs.position==='absolute'||cs.position==='fixed'||cs.display==='none')continue;
+      var r=c.getBoundingClientRect(); if(r.width||r.height){maxB=Math.max(maxB,r.bottom-base.top);maxR=Math.max(maxR,r.right-base.left);} walk(c);}})(sec);
+    if(maxB>H+2||maxR>W+2){var s=Math.min(W/Math.max(maxR,1),H/Math.max(maxB,1),1);
+      if(s<0.999){sec.style.setProperty('transform-origin','top left','important');sec.style.setProperty('transform','scale('+s+')','important');}}
+  }
+  function fitAll(){slides.forEach(fit);}
+  fitAll(); window.addEventListener('load',fitAll); // ri-fit dopo immagini/font (layout assestato)
   var i=Math.max(0,slides.findIndex(function(s){return s.classList.contains('active')})); if(i<0)i=0;
   function show(n){i=Math.max(0,Math.min(n,slides.length-1));
     slides.forEach(function(s,k){s.classList.toggle('active',k===i)});
+    fit(slides[i]); // i deck che nascondono le inattive con display:none vanno misurati DA ATTIVE
     try{parent.postMessage({__ss:'pos',i:i,n:slides.length},'*')}catch(e){}}
   function next(){show(i+1)} function prev(){show(i-1)}
   window.__ssNav={next:next,prev:prev,go:show,count:function(){return slides.length}};
@@ -139,7 +155,7 @@ function buildInnerDeckDoc(deck) {
     `<title>${escapeHtml(title)}</title>\n<style>\n${deck.styleCss || ''}\n</style>\n` +
     `<style data-ss-runtime>${innerCss(cw, ch)}</style></head>` +
     `<body><div class="deck ss-deck">\n${sections}\n</div>` +
-    `<script data-ss-runtime>${INNER_JS}</script></body></html>`;
+    `<script data-ss-runtime>${innerJs(cw, ch)}</script></body></html>`;
 }
 
 export function buildDeckHtml(deck) {

@@ -113,18 +113,18 @@ export class Stage {
     this._editingEid = null;
     this._stampEids();
     this._wireEvents();
+    this._applyOverflowFit();   // [F4] misura PRIMA (transform:none da D4), poi scala se sfora
     this.fitScale();
-    // tela fissa (niente adattamento del contenuto): se il contenuto sfora i bordi del
-    // canvas verrà clippato in proiezione/stampa → lo segnaliamo col badge ⚠.
-    this.onOverflow(mode === 'deck' ? this._checkOverflow() : false);
+    // onOverflow riceve la scala overflow (1 = ci sta; <1 = slide rimpicciolita per starci).
+    this.onOverflow(mode === 'deck' ? (this._overflowScale || 1) : 1);
   }
 
-  /** true se il contenuto IN FLUSSO eccede il canvas logico (verrà tagliato).
-   *  Ignora i sottoalberi position:absolute/fixed: la grafica decorativa che
-   *  sborda di proposito (mascotte, spark…) NON è un overflow di contenuto. */
-  _checkOverflow() {
+  /** Estensione (px) del contenuto IN FLUSSO della slide, ignorando i sottoalberi
+   *  position:absolute/fixed (la grafica decorativa che sborda di proposito NON conta).
+   *  Misurata SENZA transform (la root è transform:none per D4). */
+  _measureContentExtent() {
     const root = this.slideEl;
-    if (!root) return false;
+    if (!root) return { maxB: 0, maxR: 0 };
     const win = this.doc.defaultView;
     const base = root.getBoundingClientRect();
     let maxB = 0, maxR = 0;
@@ -141,8 +141,36 @@ export class Stage {
       }
     };
     walk(root);
+    return { maxB, maxR };
+  }
+
+  _checkOverflow() {
+    const { maxB, maxR } = this._measureContentExtent();
     return maxB > this.canvasH + 2 || maxR > this.canvasW + 2;
   }
+
+  /** [F4] Se il contenuto in-flusso sfora il canvas, scala la slide per starci INTERA
+   *  (uniforme, ancorata in alto a sinistra) → fedele e proporzionale, identico in
+   *  editor/presentazione/PDF. Sulle slide così scalate la selezione è sospesa (vedi App):
+   *  niente compensazione di coordinate; la modifica piena passerà dal reflow (opt-in). */
+  _applyOverflowFit() {
+    this._overflowScale = 1;
+    const root = this.slideEl;
+    if (!root || this.mode === 'doc') return;
+    const { maxB, maxR } = this._measureContentExtent();
+    if (maxB > this.canvasH + 2 || maxR > this.canvasW + 2) {
+      const s = Math.min(this.canvasW / Math.max(maxR, 1), this.canvasH / Math.max(maxB, 1), 1);
+      if (s < 0.999) {
+        // inline !important: vince sul `transform:none !important` dell'IFRAME_CSS [D4]
+        root.style.setProperty('transform-origin', 'top left', 'important');
+        root.style.setProperty('transform', `scale(${s})`, 'important');
+        this._overflowScale = Math.max(0.2, s);
+      }
+    }
+  }
+
+  /** true sulle slide scalate per overflow: la selezione è sospesa (view + banner). */
+  get viewLocked() { return (this._overflowScale || 1) < 1; }
 
   /** Assicura un eid su ogni elemento della slide (per selezione stabile). */
   _stampEids() {
@@ -181,6 +209,7 @@ export class Stage {
 
     // Doppio click: editing testo inline.
     doc.addEventListener('dblclick', (e) => {
+      if (this.viewLocked) return; // slide scalata per overflow: modifica sospesa
       const t = e.target.closest(`[${EDITOR_ATTR}]`);
       if (!t || t.classList.contains('ss-root')) return;
       this._beginEditing(t);
@@ -262,6 +291,7 @@ export class Stage {
   /** Seleziona al punto logico (lx,ly). through=true (⌥/⌘) → l'elemento subito
    *  sotto a quello attualmente selezionato; altrimenti il più in alto. */
   pickAt(lx, ly, through = false) {
+    if (this.viewLocked) { this.onBackground(); return; } // slide scalata per overflow: niente selezione
     const stack = this._stackAt(lx, ly);
     if (!stack.length) {
       if (this._editingEid) this._endEditing();

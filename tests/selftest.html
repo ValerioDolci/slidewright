@@ -99,6 +99,10 @@
       const noMeta = parseDeck('<html><body><div class="deck"><section class="slide"><h1>A</h1></section></div></body></html>');
       A(noMeta.canvas.w === 1280 && !noMeta._canvasFromMeta, 'F2: deck senza meta → 1280×720 default, detection demandata all\'app');
 
+      // ---- [F4] l'export include il fit overflow (scala-per-starci, coerente con l'editor) ----
+      A(bigHtml.includes('function fit(') && /maxB>H\+2\|\|maxR>W\+2/.test(bigHtml), 'F4: export HTML include il fit overflow runtime');
+      A(buildPrintHtml(fdeck, { pageBackground: '' }).includes('querySelectorAll(\'.ss-page > section\')'), 'F4: export PDF include il fit overflow runtime');
+
       // ---- id slide preservato (deck che stilano per #slide-N) ----
       const idDeck = parseDeck('<html><body><div class="deck"><section class="slide" id="slide-9"><h1>A</h1></section><section class="slide"><h1>B</h1></section></div></body></html>');
       A(idDeck.slides[0].elId === 'slide-9' && !idDeck.slides[1].elId, 'id: elId catturato da #slide-9 (vuoto se assente)');
@@ -275,13 +279,15 @@
 
       // ---- [ARCH] tela fissa: niente contentScale, niente adattamento del contenuto ----
       A(stage.contentScale === undefined && stage.effScale === undefined, 'arch: contentScale/effScale rimossi dallo Stage');
-      // contenuto più alto del canvas → la root resta 1280×720 (D4), overflow segnalato (no fit)
+      // [F4] contenuto più alto del canvas → la slide viene SCALATA per starci (fedele) +
+      // selezione sospesa (viewLocked). La root resta 1280×720 di layout; il fit è via transform.
       stage.render({ id: 'tall', classes: [], html: '<div style="height:1400px;background:#333"></div>' }, '', 'deck');
-      await new Promise((r) => setTimeout(r, 30));
+      await new Promise((r) => setTimeout(r, 40));
       const tallRoot = stage.slideEl;
-      A(Math.abs(tallRoot.offsetHeight - 720) <= 1 && Math.abs(tallRoot.offsetWidth - 1280) <= 1, 'arch[D4]: root forzata 1280×720 con contenuto 1400px (no scaling)');
-      A(stage.doc.defaultView.getComputedStyle(tallRoot).transform === 'none', 'arch: nessun transform di adattamento sulla root');
-      A(stage._checkOverflow() === true, 'arch: overflow rilevato (badge) su contenuto che sfora');
+      A(Math.abs(tallRoot.offsetHeight - 720) <= 1 && Math.abs(tallRoot.offsetWidth - 1280) <= 1, 'F4: root resta 1280×720 di layout');
+      A(stage._overflowScale > 0.42 && stage._overflowScale < 0.6, `F4: overflow → scala ~0.51 per starci (${stage._overflowScale})`);
+      A(/matrix|scale/.test(stage.doc.defaultView.getComputedStyle(tallRoot).transform), 'F4: transform scale applicato alla root overflow');
+      A(stage.viewLocked === true, 'F4: viewLocked sulle slide scalate (selezione sospesa)');
       // D4: il deck impone .slide{width:960!important} → NON vince, la tela resta 1280×720
       stage.render({ id: 'own', classes: [], html: '<h1>X</h1>' }, '.slide{width:960px!important;height:540px!important}', 'deck');
       await new Promise((r) => setTimeout(r, 30));

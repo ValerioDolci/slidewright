@@ -57,8 +57,21 @@ export function buildPrintHtml(deck, { pageBackground = '' } = {}) {
 <meta charset="UTF-8" /><title>${(deck.meta?.title || 'Deck')} — PDF</title>
 <style>${deck.styleCss || ''}</style>
 <style>${printCssBase(cw, ch)}\n${bgCss}</style>
-</head><body>${pages}</body></html>`;
+</head><body>${pages}\n<script>${overflowFitJs(cw, ch)}</script></body></html>`;
 }
+
+// [F4] runtime di stampa: scala le pagine il cui contenuto in-flusso sfora il canvas
+// (identico a editor/presentazione). Gira al load dell'iframe di stampa, PRIMA di print().
+// È il nostro runtime fidato (il contenuto del deck resta sanitizzato a parte).
+const overflowFitJs = (cw, ch) => `(function(){var W=${cw},H=${ch};` +
+  `function fit(sec){sec.style.removeProperty('transform');var base=sec.getBoundingClientRect(),maxB=0,maxR=0;` +
+  `(function walk(n){var cc=n.children;for(var k=0;k<cc.length;k++){var c=cc[k],cs=getComputedStyle(c);` +
+  `if(cs.position==='absolute'||cs.position==='fixed'||cs.display==='none')continue;` +
+  `var r=c.getBoundingClientRect();if(r.width||r.height){maxB=Math.max(maxB,r.bottom-base.top);maxR=Math.max(maxR,r.right-base.left);}walk(c);}})(sec);` +
+  `if(maxB>H+2||maxR>W+2){var s=Math.min(W/Math.max(maxR,1),H/Math.max(maxB,1),1);` +
+  `if(s<0.999){sec.style.setProperty('transform-origin','top left','important');sec.style.setProperty('transform','scale('+s+')','important');}}}` +
+  `function all(){[].slice.call(document.querySelectorAll('.ss-page > section')).forEach(fit);}` +
+  `all();window.addEventListener('load',all);})();`;
 
 /** Stampa in modalità documento: pagine A4 con impaginazione naturale del browser. */
 function buildDocPrintHtml(deck) {

@@ -104,9 +104,16 @@ export class App {
       this.selection.refresh();
       this._updateZoom();
     };
-    this.stage.onOverflow = (over) => {
+    this.stage.onOverflow = (scale) => {
+      // [F4] scale<1 = slide più alta del canvas, rimpicciolita per starci (fedele):
+      // banner + selezione sospesa (modifica piena = reflow opt-in futuro).
+      const over = (scale || 1) < 1;
       const w = $('#stage-warn');
-      if (w) w.hidden = !over;
+      if (w) {
+        w.hidden = !over;
+        if (over) w.textContent = `⚠ slide rimpicciolita al ${Math.round(scale * 100)}% per starci nel canvas — modifica sospesa`;
+      }
+      if (over) this.selection.hide();
     };
   }
 
