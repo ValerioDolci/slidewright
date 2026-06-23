@@ -113,7 +113,7 @@ export class App {
         w.hidden = !over;
         if (over) w.textContent = `⚠ slide rimpicciolita al ${Math.round(scale * 100)}% per starci nel canvas — modifica sospesa`;
       }
-      if (over) this.selection.hide();
+      if (over) { store.setSelected(null); this.stage.selectedEid = null; this.selection.hide(); }
     };
   }
 
@@ -228,7 +228,7 @@ export class App {
       if (ae && (ae.matches('input,textarea,select') || ae.isContentEditable ||
                  (ae.closest && ae.closest('.inspector,.chat,.chat-settings')))) return;
       // Tab / ⇧Tab: cicla gli elementi della slide.
-      if (e.key === 'Tab' && store.selectedEid) {
+      if (e.key === 'Tab' && store.selectedEid && !this.stage.viewLocked) {
         e.preventDefault(); this._cycleSelection(e.shiftKey ? -1 : 1); return;
       }
       if (meta && e.key.toLowerCase() === 'z') {
@@ -237,6 +237,10 @@ export class App {
         return;
       }
       if (meta && e.key.toLowerCase() === 'y') { e.preventDefault(); this._redo(); return; }
+      // [F4] slide scalata per overflow (viewLocked): selezione/modifica sospese — niente
+      // operazioni su elementi (Tab/sposta/elimina/copia) a coordinate scalate. Restano
+      // undo/redo/⌘S (sopra) ed Esc.
+      if (this.stage.viewLocked) { if (e.key === 'Escape') this._deselect(); return; }
       const sel = store.selectedEid;
       if (meta && e.key.toLowerCase() === 'c' && sel) { this._copyElement(sel); return; }
       if (meta && e.key.toLowerCase() === 'v' && this._clipboard) { e.preventDefault(); this._pasteElement(); return; }
@@ -376,6 +380,7 @@ export class App {
 
   /** Cicla la selezione fra gli elementi della slide (Tab / ⇧Tab). */
   _cycleSelection(dir) {
+    if (this.stage.viewLocked) return; // slide scalata per overflow: selezione sospesa
     const els = this.stage.editableList();
     if (!els.length) return;
     const i = els.indexOf(store.selectedEid);
