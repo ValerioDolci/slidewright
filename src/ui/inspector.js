@@ -57,6 +57,17 @@ export class Inspector {
       if (commit) this.commit();
     };
 
+    // Riempimento: molti deck stilano lo sfondo con `background: … !important` o con
+    // GRADIENTI (background-image) che coprirebbero il colore → un semplice inline
+    // `background-color` veniva ignorato "su alcune slide". Lo applichiamo con
+    // `!important` e azzeriamo l'eventuale gradiente, così il colore vince sempre.
+    const setFill = (val, commit) => {
+      elm.style.setProperty('background-color', val, 'important');
+      elm.style.setProperty('background-image', 'none', 'important');
+      this.liveRefresh();
+      if (commit) this.commit();
+    };
+
     const body = el('div', { class: 'insp' });
 
     // ---- Immagine (crop + forma) — solo per <img> ----
@@ -101,7 +112,7 @@ export class Inspector {
     // ---- Riempimento & bordo ----
     const borderW = parseInt(cs.borderTopWidth, 10) || 0;
     body.append(this._group('Riempimento e bordo', [
-      this._row('Sfondo', this._color(cs.backgroundColor, (v, c) => setStyle('backgroundColor', v, c), { allowTransparent: true, fallbackHex: rgbToHex(cs.color) || '#ffffff', pickProp: 'backgroundColor' })),
+      this._row('Sfondo', this._color(cs.backgroundColor, (v, c) => setFill(v, c), { allowTransparent: true, fallbackHex: rgbToHex(cs.color) || '#ffffff', pickProp: 'backgroundColor' })),
       // Bordo (colore): se non c'è ancora un bordo visibile, ne crea uno (solid, 2px)
       this._row('Bordo', this._color(cs.borderTopColor, (v, c) => {
         elm.style.borderColor = v;
@@ -217,8 +228,11 @@ export class Inspector {
     // alpha pieno → emette hex (compatibile con qualunque proprietà); altrimenti rgba
     const value = () => (alpha >= 1 ? sw.value : hexToRgba(sw.value, alpha));
     const emit = (commit) => cb(value(), commit);
-    // scegliere un colore su un elemento trasparente (alpha 0) deve renderlo visibile
-    const pick = (commit) => { if (alpha === 0) { alpha = 1; if (rng) rng.value = '100'; } emit(commit); };
+    // scegliere un colore dallo swatch deve renderlo VISIBILE: se l'elemento ha un fill
+    // quasi-trasparente (tipico di card/forme del deck, alpha 0.06–0.18) il cambio di
+    // colore sarebbe impercettibile. Come PowerPoint/Figma lo swatch porta il colore a
+    // opaco; la translucenza resta governata dallo slider alpha dedicato a fianco.
+    const pick = (commit) => { if (alpha < 1) { alpha = 1; if (rng) rng.value = '100'; } emit(commit); };
     // applica un rgba arbitrario (incolla / pipetta): aggiorna swatch + opacità + commit
     const applyColor = (rgba) => {
       const p = rgbaParts(rgba);

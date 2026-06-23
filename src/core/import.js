@@ -29,6 +29,16 @@ function stripExternalFonts(css) {
 
 export function parseDeck(htmlString) {
   const doc = new DOMParser().parseFromString(htmlString, 'text/html');
+
+  // Export "iframe-stage": il deck vero sta nel srcdoc dell'iframe → ricorri su quello.
+  // (getAttribute decodifica le entità → HTML reale.) La guardia evita ricorsioni
+  // infinite e iframe estranei dell'utente.
+  const stageFrame = doc.querySelector('iframe.ss-stage[srcdoc]');
+  if (stageFrame) {
+    const inner = stageFrame.getAttribute('srcdoc') || '';
+    if (/<section[^>]*class\s*=\s*["'][^"']*\bslide\b/.test(inner)) return parseDeck(inner);
+  }
+
   const warnings = [];
 
   const meta = {
@@ -51,7 +61,9 @@ export function parseDeck(htmlString) {
   // dimensione diversa) non spagina anche le altre slide. [bug import 2026-06-22]
   const insideSlide = (node) => sections.some((sec) => sec.contains(node));
   let styleCss = Array.from(doc.querySelectorAll('style'))
-    .filter((s) => !insideSlide(s))
+    // escludi il CSS di runtime dell'export (stage/scaling/nav): non è stile del deck
+    // e, se riassorbito, contaminerebbe il rendering dell'editor (es. body{display:flex}).
+    .filter((s) => !insideSlide(s) && !s.hasAttribute('data-ss-runtime'))
     .map((s) => s.textContent || '')
     .join('\n\n')
     .trim();
@@ -63,6 +75,13 @@ export function parseDeck(htmlString) {
     .filter((l) => FONT_HOST.test(l.getAttribute('href') || ''));
   if (fontStrip.found || fontLinks.length) {
     warnings.push('Font esterni (Google Fonts) rilevati e rimossi: il deck userà i font di sistema.');
+  }
+
+  // Unità relative al viewport: editor e presentazione rendono in un iframe 1280×720
+  // (vh/vw = 1280×720, ok), ma l'export PDF usa pagine fisse senza iframe → lì vh/vw
+  // restano ancorate al viewport di stampa e possono non combaciare. Meglio px o %.
+  if (/\d\s*(vh|vw|vmin|vmax)\b/i.test(styleCss)) {
+    warnings.push('Il deck usa unità vh/vw: l\'export PDF (pagine fisse) potrebbe non renderle come editor/presentazione. Per il PDF usa px o % nel canvas 1280×720.');
   }
 
   // sicurezza: niente <script> né handler inline (on*) / javascript: nelle slide

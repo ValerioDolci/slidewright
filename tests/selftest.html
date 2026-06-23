@@ -80,7 +80,7 @@
       // ---- id slide preservato (deck che stilano per #slide-N) ----
       const idDeck = parseDeck('<html><body><div class="deck"><section class="slide" id="slide-9"><h1>A</h1></section><section class="slide"><h1>B</h1></section></div></body></html>');
       A(idDeck.slides[0].elId === 'slide-9' && !idDeck.slides[1].elId, 'id: elId catturato da #slide-9 (vuoto se assente)');
-      A(buildDeckHtml(idDeck).includes('id="slide-9"'), 'id: export HTML preserva l\'id');
+      A(parseDeck(buildDeckHtml(idDeck)).slides[0].elId === 'slide-9', 'id: export HTML preserva l\'id (round-trip)');
       A(buildPrintHtml(idDeck, { pageBackground: '' }).includes('id="slide-9"'), 'id: export PDF preserva l\'id');
 
       // ---- libreria icone ----
@@ -122,13 +122,31 @@
 
       // ---- export ----
       const html = buildDeckHtml(deck);
-      A((html.match(/<section class="slide/g) || []).length === 2, 'export: 2 sezioni');
-      A(html.includes('class="deck ss-deck"'), 'export: wrapper deck ss-deck');
+      A(parseDeck(html).slides.length === 2, 'export: 2 sezioni (round-trip)');
+      A(html.includes('<iframe class="ss-stage"') && html.includes('srcdoc='), 'export: deck dentro iframe-stage (srcdoc)');
       A(html.includes('base64'), 'export: immagini reinserite (base64)');
       A(!html.includes('data-ss-asset') && !html.includes('data-ss-eid'), 'export: nessun attributo interno');
       const clean = cleanSlideHtml('<div data-ss-eid="x" contenteditable="true" class="ss-selected card">c</div>');
       A(!clean.includes('data-ss-eid') && !clean.includes('contenteditable') && clean.includes('card'),
         'export: cleanSlideHtml strip attributi editor, mantiene .card');
+
+      // ---- presentazione WYSIWYG: stage logico fisso scalato (no responsive 100vw/vh) ----
+      A(html.includes('class="ss-stage"') && html.includes('.ss-stage{') && /width:1280px;height:720px/.test(html),
+        'present: stage logico 1280x720 (no più 100vw/100vh)');
+      A(html.includes('scale(') && html.includes("window.innerWidth/W"),
+        'present: runtime scala lo stage al viewport (letterbox)');
+      A(html.includes('<style data-ss-runtime>') && html.includes('<script data-ss-runtime>'),
+        'present: CSS/JS di runtime marcati data-ss-runtime');
+      // round-trip: il runtime NON deve rientrare nello styleCss del deck (contaminerebbe l'editor)
+      const rt = parseDeck(html);
+      A(!/ss-stage/.test(rt.styleCss) && !/transform-origin:center/.test(rt.styleCss),
+        'present: round-trip esclude il runtime dallo styleCss');
+      A(rt.slides.length === deck.slides.length, 'present: round-trip preserva le slide');
+      // lint vh/vw: avviso su deck con unità relative al viewport
+      const vhDeck = parseDeck('<html><head><style>.slide{height:100vh;font-size:5vw}</style></head><body><div class="deck"><section class="slide"><h1>A</h1></section></div></body></html>');
+      A(vhDeck._warnings.some((w) => /vh\/vw/.test(w)), 'present: lint vh/vw emette warning');
+      A(!parseDeck('<html><body><div class="deck"><section class="slide"><h1>A</h1></section></div></body></html>')._warnings.some((w) => /vh\/vw/.test(w)),
+        'present: nessun warning vh/vw su deck in px');
 
       // ---- modalità documento (HTML non-slide) ----
       const docDeck = parseDeck('<!DOCTYPE html><html><head><title>Doc</title><style>body{color:red}</style></head><body><section><h1>Titolo</h1><p>testo</p></section><section><p>altro</p></section></body></html>');
@@ -266,6 +284,29 @@
       A(stage.slideEl.id === 'slide-9' && stage.slideEl.classList.contains('ss-root'), 'id: root ha id originale + classe ss-root');
       scene.remove();
 
+      // ---- inspector: il riempimento VINCE su CSS !important e gradienti del deck ----
+      // (regressione deck reale: 102/601 elementi avevano fill ignorato — 27 per regole
+      //  !important, 75 per gradienti che coprivano il colore)
+      const finsp = new Inspector(document.createElement('div'), document.createElement('div'));
+      const fillEl = document.createElement('div');
+      fillEl.id = 'ssfilltest';
+      fillEl.style.cssText = 'background:linear-gradient(90deg,#003865,#001f3d)';
+      document.body.appendChild(fillEl);
+      const fsheet = document.createElement('style');
+      fsheet.textContent = '#ssfilltest{background:#003865 !important}'; // batte un inline normale
+      document.head.appendChild(fsheet);
+      finsp.getElement = () => fillEl; finsp.commit = () => {}; finsp.liveRefresh = () => {};
+      finsp.render('x');
+      const fillSw = [...finsp.bodyEl.querySelectorAll('.insp__row')]
+        .find((r) => r.querySelector('.insp__label')?.textContent.trim() === 'Sfondo')
+        ?.querySelector('input[type=color]');
+      fillSw.value = '#00ff00'; fillSw.dispatchEvent(new Event('change'));
+      A(fillEl.style.getPropertyPriority('background-color') === 'important', 'fill: applica background-color con !important');
+      A(fillEl.style.getPropertyValue('background-image') === 'none' && fillEl.style.getPropertyPriority('background-image') === 'important', 'fill: azzera il gradiente (background-image:none !important)');
+      A(getComputedStyle(fillEl).backgroundColor === 'rgb(0, 255, 0)', 'fill: computed = verde (vince su #003865 !important del deck)');
+      A(getComputedStyle(fillEl).backgroundImage === 'none', 'fill: nessun gradiente residuo che copra il colore');
+      fillEl.remove(); fsheet.remove();
+
       // ---- inspector: colore con alpha (no schiacciamento dell'opacità) ----
       A(hexToRgba('#b45309', 0.2) === 'rgba(180, 83, 9, 0.2)', 'colore: hex+alpha → rgba');
       const pa = rgbaParts('rgba(180, 83, 9, 0.18)');
@@ -281,6 +322,16 @@
       const rngA = cw.querySelector('.insp__alpha');
       rngA.value = '50'; rngA.dispatchEvent(new Event('input'));
       A(capA[capA.length - 1] === 'rgba(255, 0, 0, 0.5)', `color: opacità su trasparente applica il colore visibile (${capA[capA.length-1]})`);
+
+      // ---- inspector _color: scegliere un colore su fill QUASI-trasparente lo rende OPACO ----
+      // (regressione: card/forme del deck nascono con alpha 0.06–0.18 → il cambio colore
+      //  dallo swatch era impercettibile; ora lo swatch porta a opaco, slider per la translucenza)
+      const capLow = [];
+      const lw = insp._color('rgba(180,83,9,0.18)', (v) => capLow.push(v), { allowTransparent: true });
+      const swLow = lw.querySelector('.insp__swatch');
+      swLow.value = '#00ff00'; swLow.dispatchEvent(new Event('change'));
+      A(capLow[capLow.length - 1] === '#00ff00', `color: swatch su fill quasi-trasparente → opaco (${capLow[capLow.length-1]})`);
+      A(lw.querySelector('.insp__alpha').value === '100', 'color: lo slider alpha si allinea a 100 dopo lo swatch');
 
       // ---- inspector _color: copia/incolla colore CON trasparenza ----
       const capDst = [];

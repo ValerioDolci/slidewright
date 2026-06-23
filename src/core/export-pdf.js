@@ -136,12 +136,22 @@ export async function exportPdf(deck) {
     doc.write(html);
     doc.close();
 
+    // Pulizia SOLO dopo che la stampa è conclusa/annullata. Rimuovere l'iframe a timer
+    // fisso (mentre il dialogo "Salva come PDF" è ancora aperto) lascia su Windows il
+    // file di output bloccato → "impossibile aprire: aperto da un'altra app". Su Chrome
+    // moderno print() ritorna subito (il dialogo resta aperto), quindi aspettiamo
+    // l'evento afterprint; fallback generoso se non scatta.
+    let cleaned = false;
+    const cleanup = () => { if (cleaned) return; cleaned = true; iframe.remove(); resolve(); };
     const fire = () => {
+      const w = iframe.contentWindow;
+      w.addEventListener('afterprint', () => setTimeout(cleanup, 300), { once: true });
+      setTimeout(cleanup, 120000); // fallback: alcuni browser non emettono afterprint
       try {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-      } finally {
-        setTimeout(() => { iframe.remove(); resolve(); }, 800);
+        w.focus();
+        w.print();
+      } catch (_) {
+        setTimeout(cleanup, 800);
       }
     };
     if (iframe.contentWindow.document.readyState === 'complete') setTimeout(fire, 150);
