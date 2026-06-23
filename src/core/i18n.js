@@ -17,6 +17,13 @@
  */
 
 const EN = {
+  // ---- inspector: colore ----
+  'Nero': 'Black',
+  'Bianco': 'White',
+  // ---- inspector: copia formato (format painter) ----
+  '🖌 Copia formato': '🖌 Copy format',
+  'Copia lo stile di questo elemento, poi clicca quello a cui applicarlo': 'Copy this element\'s style, then click the one to apply it to',
+  'Formato copiato — clicca l\'elemento a cui applicarlo (Esc annulla).': 'Format copied — click the element to apply it to (Esc to cancel).',
   // ---- drop overlay ----
   'Rilascia qui il tuo': 'Drop your',
   'Verranno importati stile e slide': 'Style and slides will be imported',

@@ -20,6 +20,7 @@ import { runAgentTurn } from '../core/agent.js';
 import { $, el, readFileText, readFileDataURL } from '../util/dom.js';
 import { EDITOR_ATTR, uid } from '../util/id.js';
 import { externalize, inline, describeAssetsForLlm, collectAssetIds, pruneAssets } from '../core/assets.js';
+import { snapshotAppearance, readAppearance } from '../core/appearance.js';
 import { sanitizeHtml } from '../core/sanitize.js';
 import { setLang, getLang, t, applyI18n } from '../core/i18n.js';
 import { ICONS, iconSvg } from '../core/icons.js';
@@ -32,6 +33,7 @@ export class App {
     this._loading = false;       // sopprime il "dirty" durante import
     this._isWelcome = true;      // il deck iniziale è quello di benvenuto (segue la lingua)
     this._clipboard = null;      // HTML elemento copiato (⌘C/⌘V)
+    this._formatClip = null;     // stile copiato dal "copia formato"
     this.stage = new Stage({
       sceneEl: $('#stage-scene'),
       canvasEl: $('#stage-canvas'),
@@ -144,6 +146,7 @@ export class App {
     this.inspector.liveRefresh = () => this.selection.refresh();
     this.inspector.duplicateElement = (eid) => this._duplicateElement(eid);
     this.inspector.deleteElement = (eid) => this._deleteElement(eid);
+    this.inspector.copyFormat = (eid) => this._copyFormat(eid);
     this.inspector.makeFree = (elm) => this.stage.makeFree(elm);
     this.inspector.eyedrop = (cb) => this.stage.startPick(cb);
     this.inspector.selectParent = (eid) => {
@@ -742,8 +745,31 @@ export class App {
   _copyElement(eid) {
     const elm = this.stage.getElement(eid);
     if (!elm || elm.classList.contains('ss-root')) return;
-    this._clipboard = externalize(elm.outerHTML); // immagini → placeholder asset
+    // inlino l'aspetto computato su un clone: così l'incolla resta fedele anche
+    // quando l'oggetto viene riattaccato alla root (perde gli antenati / il CSS
+    // scoped per-ID del deck). Non tocca l'elemento vivo.
+    const snap = snapshotAppearance(elm, this.stage.doc.defaultView);
+    this._clipboard = externalize(snap.outerHTML); // immagini → placeholder asset
     this._hint('Elemento copiato — ⌘V per incollare.');
+  }
+
+  // ---------- copia formato (format painter) ----------
+  // Copia lo STILE (aspetto) dell'elemento selezionato e, al click successivo su
+  // un altro elemento nella slide, lo applica a quello. Utile per uniformare il
+  // testo senza copiare/incollare l'intero oggetto.
+  _copyFormat(eid) {
+    const elm = this.stage.getElement(eid);
+    if (!elm || elm.classList.contains('ss-root')) return;
+    this._formatClip = readAppearance(elm, this.stage.doc.defaultView);
+    this._hint(t('Formato copiato — clicca l\'elemento a cui applicarlo (Esc annulla).'));
+    this.stage.startPick((target) => this._applyFormat(target));
+  }
+
+  _applyFormat(target) {
+    if (!target || !this._formatClip || target.classList.contains('ss-root')) return;
+    for (const [p, v] of Object.entries(this._formatClip)) target.style.setProperty(p, v);
+    this.commitStage('Applica formato');
+    this.stage.onSelect(target.getAttribute(EDITOR_ATTR));
   }
 
   _pasteElement() {

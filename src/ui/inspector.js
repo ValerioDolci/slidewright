@@ -30,6 +30,7 @@ export class Inspector {
     this.duplicateElement = () => {};
     this.deleteElement = () => {};
     this.selectParent = () => {};
+    this.copyFormat = () => {};
     this.makeFree = () => {};
     this.eyedrop = () => {}; // (cb) => attiva la pipetta sullo stage, poi cb(elemento)
   }
@@ -93,7 +94,7 @@ export class Inspector {
       this._row('Font', this._select(FONTS, cs.fontFamily, (v, c) => setStyle('fontFamily', v, c))),
       this._row('Dim.', this._number(parseInt(cs.fontSize, 10) || 16, 6, 200, (v, c) => setStyle('fontSize', `${v}px`, c))),
       this._row('Peso', this._select(WEIGHTS, cs.fontWeight, (v, c) => setStyle('fontWeight', v, c))),
-      this._row('Colore', this._color(cs.color, (v, c) => setStyle('color', v, c), { pickProp: 'color' })),
+      this._row('Colore', this._color(cs.color, (v, c) => setStyle('color', v, c), { pickProp: 'color', quickBW: true })),
       this._row('Allinea', this._segmented(ALIGNS, cs.textAlign, (v) => setStyle('textAlign', v, true))),
     ]));
 
@@ -157,6 +158,7 @@ export class Inspector {
         el('button', { class: 'btn btn--sm', text: '↑ Contenitore', title: 'Seleziona l\'elemento padre', disabled: canParent ? null : 'disabled', onClick: () => this.selectParent(eid) }),
         el('button', { class: 'btn btn--sm', text: 'Avanti', title: 'Porta in primo piano', onClick: () => bumpZ(1) }),
         el('button', { class: 'btn btn--sm', text: 'Indietro', title: 'Porta in fondo', onClick: () => bumpZ(-1) }),
+        el('button', { class: 'btn btn--sm', text: '🖌 Copia formato', title: t('Copia lo stile di questo elemento, poi clicca quello a cui applicarlo'), onClick: () => this.copyFormat(eid) }),
         el('button', { class: 'btn btn--sm', text: 'Duplica', onClick: () => this.duplicateElement(eid) }),
         el('button', { class: 'btn btn--sm btn--danger', text: 'Elimina', onClick: () => this.deleteElement(eid) }),
       ]),
@@ -226,6 +228,17 @@ export class Inspector {
     sw.addEventListener('input', () => pick(false));
     sw.addEventListener('change', () => pick(true));
     wrap.append(sw);
+    // scorciatoie bianco/nero (comode per il colore del testo)
+    if (opts && opts.quickBW) {
+      wrap.append(el('button', {
+        class: 'insp__bw insp__bw--black', title: t('Nero'),
+        onClick: () => applyColor('#000000'),
+      }));
+      wrap.append(el('button', {
+        class: 'insp__bw insp__bw--white', title: t('Bianco'),
+        onClick: () => applyColor('#ffffff'),
+      }));
+    }
     if (allowTransparent) {
       // slider opacità del colore stesso (preserva l'alpha invece di schiacciarlo)
       rng = el('input', {

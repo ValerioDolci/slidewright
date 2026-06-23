@@ -24,6 +24,7 @@
     import { Stage } from '/src/ui/stage.js';
     import { EDITOR_ATTR } from '/src/util/id.js';
     import { ICONS, iconSvg } from '/src/core/icons.js';
+    import { snapshotAppearance, readAppearance } from '/src/core/appearance.js';
 
     const log = []; let pass = 0, fail = 0;
     const A = (cond, msg) => {
@@ -305,6 +306,15 @@
       A(pc.querySelector('.insp__swatch').value === '#0a141e', 'color: pipetta aggiorna lo swatch');
       tgt.remove();
 
+      // ---- inspector _color: scorciatoie bianco/nero ----
+      const capBW = [];
+      const bw = insp._color('rgb(120,120,120)', (v) => capBW.push(v), { pickProp: 'color', quickBW: true });
+      const bwBtns = bw.querySelectorAll('.insp__bw');
+      A(bwBtns.length === 2, `color: quickBW rende 2 pulsanti (${bwBtns.length})`);
+      bwBtns[0].click(); A(capBW[capBW.length - 1] === '#000000', `color: pulsante Nero → #000000 (${capBW[capBW.length-1]})`);
+      bwBtns[1].click(); A(capBW[capBW.length - 1] === '#ffffff', `color: pulsante Bianco → #ffffff (${capBW[capBW.length-1]})`);
+      A(insp._color('rgb(0,0,0)', () => {}, { pickProp: 'color' }).querySelectorAll('.insp__bw').length === 0, 'color: niente quickBW senza opzione');
+
       // ---- iframe sandbox: handler inline NON eseguito (difesa in profondità) ----
       const sbx = document.createElement('iframe');
       sbx.setAttribute('sandbox', 'allow-same-origin'); // come lo stage: DOM accessibile, script OFF
@@ -317,6 +327,58 @@
       await new Promise((r) => setTimeout(r, 150));
       A(!window.__SBX_PWNED, 'sicurezza: iframe sandbox blocca onerror (no allow-scripts)');
       sbx.remove();
+
+      // ---- copia/incolla: snapshot aspetto preserva il formato sotto re-parent (CSS per-ID) ----
+      {
+        const host = document.createElement('div');
+        host.style.cssText = 'position:fixed;left:-9999px';
+        host.innerHTML = '<style>#sl-x .c{color:rgb(10,200,120);font-weight:700}' +
+          '#sl-x .c h3{color:rgb(240,170,60)}</style>' +
+          '<section id="sl-x"><div class="c" id="o"><h3>T</h3></div></section>' +
+          '<section id="dest"></section>';
+        document.body.appendChild(host);
+        const src = host.querySelector('#o');
+        // senza fix: clone semplice spostato sotto #dest perde il colore per-ID
+        const naive = src.cloneNode(true); host.querySelector('#dest').appendChild(naive);
+        A(getComputedStyle(naive).color !== 'rgb(10, 200, 120)', `copia: re-parent senza snapshot perde il colore per-ID (${getComputedStyle(naive).color})`);
+        naive.remove();
+        // con fix: snapshotAppearance inlina l'aspetto → fedele anche sotto #dest
+        const snap = snapshotAppearance(src, window);
+        snap.id = ''; host.querySelector('#dest').appendChild(snap);
+        A(getComputedStyle(snap).color === 'rgb(10, 200, 120)', `copia: snapshot preserva il colore del box (${getComputedStyle(snap).color})`);
+        A(getComputedStyle(snap.querySelector('h3')).color === 'rgb(240, 170, 60)', 'copia: snapshot preserva il colore dei discendenti');
+        A(!/color:\s*rgb\(0, 0, 0\)/.test(snap.getAttribute('style') || ''), 'copia: snapshot non inlina rumore nero di default');
+
+        // ---- copia formato: readAppearance + applicazione a un target ----
+        const fmap = readAppearance(src, window);
+        A(fmap['color'] === 'rgb(10, 200, 120)', `formato: readAppearance legge il colore (${fmap['color']})`);
+        A(fmap['font-weight'] === '700', 'formato: readAppearance legge il peso');
+        A(!('background-color' in fmap), 'formato: readAppearance scarta lo sfondo trasparente (rumore)');
+        const dst2 = document.createElement('p'); dst2.textContent = 'x';
+        host.querySelector('#dest').appendChild(dst2);
+        for (const [p, v] of Object.entries(fmap)) dst2.style.setProperty(p, v);
+        A(getComputedStyle(dst2).color === 'rgb(10, 200, 120)', `formato: applicato al target preserva il colore (${getComputedStyle(dst2).color})`);
+        host.remove();
+
+        // ---- isNoise: bg-image url() esterno scartato, gradient/data: tenuti, font-weight 400 scartato ----
+        const probe = document.createElement('div');
+        probe.style.cssText = 'position:fixed;left:-9999px';
+        document.body.appendChild(probe);
+        probe.style.backgroundImage = 'url(http://example.com/x.png)';
+        A(!('background-image' in readAppearance(probe, window)), 'noise: background-image url() esterno scartato (no file:// pollution)');
+        probe.style.backgroundImage = 'linear-gradient(rgb(1,2,3), rgb(4,5,6))';
+        A('background-image' in readAppearance(probe, window), 'noise: gradient mantenuto');
+        probe.style.fontWeight = '400';
+        A(!('font-weight' in readAppearance(probe, window)), 'noise: font-weight 400 scartato');
+        probe.style.fontWeight = '700';
+        A(readAppearance(probe, window)['font-weight'] === '700', 'noise: font-weight 700 mantenuto');
+        // snapshot non duplica una proprietà già inline (CSSOM dedupa)
+        const dupEl = document.createElement('div'); dupEl.style.color = 'rgb(9,9,9)';
+        probe.appendChild(dupEl);
+        const dupSnap = snapshotAppearance(dupEl, window);
+        A((dupSnap.getAttribute('style').match(/(?:^|;)\s*color:/g) || []).length === 1, 'snapshot: nessuna proprietà color duplicata');
+        probe.remove();
+      }
     } catch (e) {
       fail++; log.push(`<span class="bad">EXCEPTION</span> ${e.message}\n${e.stack}`);
     }

@@ -303,6 +303,13 @@ button { font-family: inherit; }
 }
 .insp__cbtn svg { display: block; }
 .insp__cbtn:hover { color: var(--fg); border-color: var(--amber); }
+.insp__bw {
+  width: 18px; height: 26px; flex: none; padding: 0; cursor: pointer;
+  border: 1px solid var(--line); border-radius: var(--radius);
+}
+.insp__bw:hover { border-color: var(--amber); }
+.insp__bw--black { background: #000; }
+.insp__bw--white { background: #fff; }
 .insp__seg, .insp__btns { display: flex; gap: 5px; }
 .insp__btns { flex-wrap: wrap; }
 .insp__seg { width: 100%; }
