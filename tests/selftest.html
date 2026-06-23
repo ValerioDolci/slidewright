@@ -56,6 +56,13 @@
       // ---- script strip ----
       A(!/<script/i.test(deck.slides[1].html) && !window.__HACK, 'sicurezza: <script> rimosso, non eseguito');
 
+      // ---- [F3] avvisi di fedeltà: script rimossi + risorse esterne ----
+      A(deck._warnings.some((w) => /[Ss]cript rimossi/.test(w)), 'F3: avviso "script rimossi" (il SAMPLE ha uno <script>)');
+      const extDeck = parseDeck('<html><head><style>.x{background:url(https://cdn.example.com/bg.png)}</style></head><body><div class="deck"><section class="slide"><img src="https://cdn.example.com/a.png"></section></div></body></html>');
+      A(extDeck._warnings.some((w) => /[Rr]isorse esterne/.test(w)), 'F3: avviso "risorse esterne" su img/url http');
+      const cleanDeck = parseDeck('<html><body><div class="deck"><section class="slide"><h1>ok</h1></section></div></body></html>');
+      A(!cleanDeck._warnings.some((w) => /esterne|rimossi/.test(w)), 'F3: nessun avviso spurio su deck pulito');
+
       // ---- <style> dentro una slide NON deve diventare globale (non spagina le altre) ----
       const leaky = parseDeck('<html><head><style>.card{color:#fff}</style></head><body><div class="deck">' +
         '<section class="slide"><div class="card">A</div></section>' +

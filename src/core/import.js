@@ -84,6 +84,17 @@ export function parseDeck(htmlString) {
     warnings.push('Il deck usa unità vh/vw: l\'export PDF (pagine fisse) potrebbe non renderle come editor/presentazione. Per il PDF usa px o % nel canvas 1280×720.');
   }
 
+  // [F3] avvisi di fedeltà onesti (la conversione non finge):
+  // - script rimossi: se il deck generava/posizionava contenuto via JS, può mancare;
+  // - risorse esterne (immagini/CSS via URL http): potrebbero non caricarsi offline
+  //   (l'inlining automatico è limitato da CORS → si segnala, non si forza).
+  if (/<script[\s>]/i.test(htmlString)) {
+    warnings.push('Script rimossi (sicurezza): se il contenuto era generato/posizionato da JS potrebbe mancare.');
+  }
+  if (/(?:src|href)\s*=\s*["']?https?:\/\//i.test(htmlString) || /url\(\s*['"]?https?:\/\//i.test(styleCss)) {
+    warnings.push('Risorse esterne (immagini/CSS via URL) rilevate: potrebbero non caricarsi offline — meglio incorporarle.');
+  }
+
   // sicurezza: niente <script> né handler inline (on*) / javascript: nelle slide
   // (no esecuzione codice nell'editor/export). + externalize: le immagini base64
   // vanno nel pool asset (history leggera).
