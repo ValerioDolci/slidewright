@@ -90,6 +90,15 @@
       // deck 1280 default: invariato (comportamento neutro)
       A(buildDeckHtml(fdeck).includes('1280px') && buildPrintHtml(fdeck, { pageBackground: '' }).includes('338.667mm'), 'F1: deck 1280×720 invariato (default canonico)');
 
+      // ---- [F2] canvas persistito nel meta + round-trip autorevole (no re-detection) ----
+      // il meta è dentro il srcdoc → " escapizzato a &quot; nell'HTML esterno
+      A(bigHtml.includes('slidewright:canvas') && bigHtml.includes('1920x1080'), 'F2: export persiste il canvas nel meta (dentro il srcdoc)');
+      const reBig = parseDeck(bigHtml);
+      A(reBig.canvas.w === 1920 && reBig.canvas.h === 1080 && reBig._canvasFromMeta === true, 'F2: re-import legge il canvas dal meta (autorevole, round-trip stabile)');
+      // deck senza meta → default canonico + niente flag (sarà l'app a rilevare)
+      const noMeta = parseDeck('<html><body><div class="deck"><section class="slide"><h1>A</h1></section></div></body></html>');
+      A(noMeta.canvas.w === 1280 && !noMeta._canvasFromMeta, 'F2: deck senza meta → 1280×720 default, detection demandata all\'app');
+
       // ---- id slide preservato (deck che stilano per #slide-N) ----
       const idDeck = parseDeck('<html><body><div class="deck"><section class="slide" id="slide-9"><h1>A</h1></section><section class="slide"><h1>B</h1></section></div></body></html>');
       A(idDeck.slides[0].elId === 'slide-9' && !idDeck.slides[1].elId, 'id: elId catturato da #slide-9 (vuoto se assente)');

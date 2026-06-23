@@ -8,8 +8,9 @@
  */
 
 import { store } from '../core/store.js';
-import { createDeck, createSlide, cloneDeck, emptySlideHtml, welcomeDeck } from '../core/model.js';
+import { createDeck, createSlide, cloneDeck, emptySlideHtml, welcomeDeck, CANVAS } from '../core/model.js';
 import { parseDeck } from '../core/import.js';
+import { detectDeckCanvas } from '../core/detect-canvas.js';
 import { buildDeckHtml } from '../core/export-html.js';
 import { Stage } from './stage.js';
 import { Sidebar } from './sidebar.js';
@@ -808,12 +809,27 @@ export class App {
     this._loadDeckFromText(text, this._fileName || 'deck.html', true);
   }
 
-  _loadDeckFromText(text, name, bound = false) {
+  async _loadDeckFromText(text, name, bound = false) {
     if (!bound) this.platform.discardCurrent(); // drop/fallback: niente handle stantio del file precedente
     this._loading = true;
     try {
       const deck = parseDeck(text);
       deck.meta.title = deck.meta.title || name.replace(/\.html?$/i, '');
+      // [F2] rileva la misura del deck (16:9 a misura propria → adotta; responsive →
+      // canonico 1280×720). Mai inferire da bbox fluida (vedi detect-canvas.js). Se il
+      // canvas è già autorevole (meta di un export Slidewright) NON si ri-rileva.
+      if (!deck._canvasFromMeta) {
+        try {
+          const det = await detectDeckCanvas(deck.styleCss, deck.slides[0]);
+          deck.canvas = { w: det.w, h: det.h };
+          deck._warnings = deck._warnings || [];
+          if (det.kind === 'fixed' && (det.w !== CANVAS.w || det.h !== CANVAS.h)) {
+            deck._warnings.unshift(`Deck rilevato a ${det.w}×${det.h} (16:9): adottato come formato.`);
+          } else if (det.kind === 'fixed-non169') {
+            deck._warnings.unshift(`Deck ${det.detected.w}×${det.detected.h} (non 16:9): uso il canvas 1280×720.`);
+          }
+        } catch (_) { /* canvas resta quello di default del modello */ }
+      }
       store.setDeck(deck);
       // history azzerata da setDeck → si possono liberare gli asset del deck precedente
       pruneAssets(collectAssetIds(deck.slides.map((s) => s.html)));

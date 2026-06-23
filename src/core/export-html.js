@@ -134,6 +134,8 @@ function buildInnerDeckDoc(deck) {
     })
     .join('\n');
   return `<!DOCTYPE html>${CREDIT}<html lang="${escapeAttr(lang)}"><head><meta charset="UTF-8" />` +
+    // [F2] canvas persistito: alla riapertura l'import lo legge come autorevole (no re-detect)
+    `<meta name="slidewright:canvas" content="${cw}x${ch}" />` +
     `<title>${escapeHtml(title)}</title>\n<style>\n${deck.styleCss || ''}\n</style>\n` +
     `<style data-ss-runtime>${innerCss(cw, ch)}</style></head>` +
     `<body><div class="deck ss-deck">\n${sections}\n</div>` +

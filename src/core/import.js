@@ -108,5 +108,14 @@ export function parseDeck(htmlString) {
     slides = [{ id: uid('sl'), classes: [], html: doc.body ? prep(doc.body) : '' }];
   }
 
-  return { meta, mode, canvas: { ...CANVAS }, styleCss, slides, _warnings: warnings };
+  // [F2] canvas: se l'export Slidewright ha persistito la misura (meta), è autorevole →
+  // niente re-detection (round-trip stabile). Altrimenti default canonico; sarà l'app a
+  // rilevarlo (detect-canvas) al caricamento.
+  let canvas = { ...CANVAS };
+  let canvasFromMeta = false;
+  const cm = doc.querySelector('meta[name="slidewright:canvas"]')?.getAttribute('content');
+  const m = cm && cm.match(/^(\d{2,5})x(\d{2,5})$/);
+  if (m) { canvas = { w: +m[1], h: +m[2] }; canvasFromMeta = true; }
+
+  return { meta, mode, canvas, _canvasFromMeta: canvasFromMeta, styleCss, slides, _warnings: warnings };
 }
