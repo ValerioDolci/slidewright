@@ -24,7 +24,12 @@ import { CANVAS } from './model.js';
 const mm = (px) => (px * 25.4 / 96).toFixed(3);
 const printCssBase = (cw, ch) => `
 @page { size: ${mm(cw)}mm ${mm(ch)}mm; margin: 0; }
-html,body{margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+/* Forza la stampa di sfondi/gradienti su OGNI elemento: senza questo Chrome NON stampa i
+   background-image (es. la radial gradient di .slide-body) e lo sfondo scuro sparisce →
+   i box semitrasparenti finiscono su bianco e appaiono pieni. print-color-adjust è
+   ereditato, ma alcuni deck lo resettano sui figli: lo mettiamo esplicito su tutto. */
+*,*::before,*::after{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
+html,body{margin:0;padding:0;}
 .ss-page{position:relative;width:${cw}px;height:${ch}px;overflow:hidden;
   page-break-after:always;break-after:page;}
 .ss-page:last-child{page-break-after:auto;break-after:auto;}
