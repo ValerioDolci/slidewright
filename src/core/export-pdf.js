@@ -19,10 +19,13 @@
 import { cleanSlideHtml, CREDIT } from './export-html.js';
 import { CANVAS } from './model.js';
 
-const PRINT_CSS_BASE = `
-@page { size: 338.667mm 190.5mm; margin: 0; }
+// [F1] canvas PER-DECK: la pagina @page è in mm = px/96·25.4 (1:1 col canvas → identico,
+// indipendente dalla misura 16:9; per 1280×720 = 338.667×190.5mm come prima).
+const mm = (px) => (px * 25.4 / 96).toFixed(3);
+const printCssBase = (cw, ch) => `
+@page { size: ${mm(cw)}mm ${mm(ch)}mm; margin: 0; }
 html,body{margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-.ss-page{position:relative;width:${CANVAS.w}px;height:${CANVAS.h}px;overflow:hidden;
+.ss-page{position:relative;width:${cw}px;height:${ch}px;overflow:hidden;
   page-break-after:always;break-after:page;}
 .ss-page:last-child{page-break-after:auto;break-after:auto;}
 /* Forza ogni slide visibile e ferma nella sua pagina (override della logica .active) */
@@ -32,6 +35,7 @@ html,body{margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust
 
 export function buildPrintHtml(deck, { pageBackground = '' } = {}) {
   if ((deck.mode || 'deck') === 'doc') return buildDocPrintHtml(deck);
+  const cw = deck.canvas?.w || CANVAS.w, ch = deck.canvas?.h || CANVAS.h; // [F1] canvas per-deck
   const pages = deck.slides
     .map((s) => {
       // 'active' su OGNI pagina: i deck che mostrano/nascondono con .slide{display:none}
@@ -52,7 +56,7 @@ export function buildPrintHtml(deck, { pageBackground = '' } = {}) {
   return `<!DOCTYPE html>${CREDIT}<html lang="${deck.meta?.lang || 'it'}"><head>
 <meta charset="UTF-8" /><title>${(deck.meta?.title || 'Deck')} — PDF</title>
 <style>${deck.styleCss || ''}</style>
-<style>${PRINT_CSS_BASE}\n${bgCss}</style>
+<style>${printCssBase(cw, ch)}\n${bgCss}</style>
 </head><body>${pages}</body></html>`;
 }
 
@@ -71,12 +75,12 @@ function buildDocPrintHtml(deck) {
  * UNA pagina), le dichiarazioni di sfondo del body — così possono essere
  * replicate identiche su ogni pagina. Stringa vuota se lo sfondo è trasparente.
  */
-export function computeBodyBackground(styleCss) {
+export function computeBodyBackground(styleCss, canvas = CANVAS) {
   return new Promise((resolve) => {
     const f = document.createElement('iframe');
     Object.assign(f.style, {
       position: 'fixed', left: '-99999px', top: '0',
-      width: `${CANVAS.w}px`, height: `${CANVAS.h}px`, border: '0', visibility: 'hidden',
+      width: `${canvas.w || CANVAS.w}px`, height: `${canvas.h || CANVAS.h}px`, border: '0', visibility: 'hidden',
     });
     document.body.append(f);
     const d = f.contentDocument;
@@ -114,7 +118,7 @@ export function computeBodyBackground(styleCss) {
  */
 export async function exportPdf(deck) {
   const isDoc = (deck.mode || 'deck') === 'doc';
-  const pageBackground = isDoc ? '' : await computeBodyBackground(deck.styleCss);
+  const pageBackground = isDoc ? '' : await computeBodyBackground(deck.styleCss, deck.canvas || CANVAS);
   const html = buildPrintHtml(deck, { pageBackground });
 
   return new Promise((resolve) => {

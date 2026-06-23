@@ -28,12 +28,23 @@ export class Sidebar {
 
   _thumbDoc(deck, slide) {
     const id = slide.elId ? ` id="${slide.elId}"` : '';     // preserva l'id (CSS #slide-N del deck)
-    // stessa forzatura "tela fissa" dell'editor [D4]: ${CANVAS.w}×${CANVAS.h}, niente
-    // adattamento; contenuto che sfora clippato (coerente con editor/presentazione).
+    const cw = deck.canvas?.w || CANVAS.w, ch = deck.canvas?.h || CANVAS.h; // [F1] canvas per-deck
+    // stessa forzatura "tela fissa" dell'editor [D4]: ${cw}×${ch}, niente adattamento;
+    // contenuto che sfora clippato (coerente con editor/presentazione).
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${deck.styleCss || ''}</style>
-<style>html,body{margin:0;width:${CANVAS.w}px;height:${CANVAS.h}px;overflow:hidden;pointer-events:none}
-.ss-root{position:absolute !important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;margin:0!important;width:${CANVAS.w}px!important;height:${CANVAS.h}px!important;opacity:1!important;visibility:visible!important;transform:none!important;transition:none!important}</style>
+<style>html,body{margin:0;width:${cw}px;height:${ch}px;overflow:hidden;pointer-events:none}
+.ss-root{position:absolute !important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;margin:0!important;width:${cw}px!important;height:${ch}px!important;opacity:1!important;visibility:visible!important;transform:none!important;transition:none!important}</style>
 </head><body><section${id} class="slide active ss-root ${(slide.classes || []).join(' ')}">${inline(slide.html)}</section></body></html>`;
+  }
+
+  /** [F1] dimensiona l'iframe-miniatura al canvas del deck e lo scala alla larghezza display
+   *  (166px), così funziona per qualsiasi misura 16:9 (1280×720, 1920×1080, …). */
+  _sizeThumbFrame(frame, deck) {
+    const cw = deck.canvas?.w || CANVAS.w, ch = deck.canvas?.h || CANVAS.h;
+    frame.style.width = `${cw}px`;
+    frame.style.height = `${ch}px`;
+    frame.style.transform = `scale(${166 / cw})`;
+    frame.style.transformOrigin = 'top left';
   }
 
   render(deck, current) {
@@ -44,6 +55,7 @@ export class Sidebar {
         scrolling: 'no', referrerpolicy: 'no-referrer', sandbox: '',
       });
       frame.srcdoc = this._thumbDoc(deck, slide);
+      this._sizeThumbFrame(frame, deck);
 
       const li = el('li', {
         class: `thumb ${i === current ? 'thumb--active' : ''}`,
@@ -77,6 +89,6 @@ export class Sidebar {
   refreshThumb(deck, i) {
     const li = this.list.querySelector(`.thumb[data-index="${i}"]`);
     const frame = li?.querySelector('.thumb__frame');
-    if (frame) frame.srcdoc = this._thumbDoc(deck, deck.slides[i]);
+    if (frame) { frame.srcdoc = this._thumbDoc(deck, deck.slides[i]); this._sizeThumbFrame(frame, deck); }
   }
 }

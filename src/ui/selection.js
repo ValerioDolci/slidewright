@@ -14,7 +14,6 @@
 
 import { el } from '../util/dom.js';
 import { EDITOR_ATTR } from '../util/id.js';
-import { CANVAS } from '../core/model.js';
 
 const HANDLES = [
   ['nw', 0, 0], ['n', 0.5, 0], ['ne', 1, 0],
@@ -116,7 +115,8 @@ export class SelectionLayer {
   /** Linee bersaglio (x,y) dagli altri elementi + centro/bordi slide. */
   _snapTargets() {
     const sel = this.stage.getElement(this.eid);
-    const X = [0, CANVAS.w / 2, CANVAS.w], Y = [0, CANVAS.h / 2, CANVAS.h];
+    const cw = this.stage.canvasW, ch = this.stage.canvasH; // [F1] canvas per-deck
+    const X = [0, cw / 2, cw], Y = [0, ch / 2, ch];
     this.stage.slideEl.querySelectorAll(`[${EDITOR_ATTR}]`).forEach((n) => {
       if (n === sel || n.classList.contains('ss-root') || sel.contains(n) || n.contains(sel)) return;
       const r = n.getBoundingClientRect();

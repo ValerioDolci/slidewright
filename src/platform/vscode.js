@@ -85,7 +85,7 @@ export class VsCodePlatform {
     // poi l'host lo apre nel browser esterno: l'utente fa ⌘/Ctrl+P → "Salva come PDF"
     // (window.print() non apre il dialogo dentro la webview → step 5).
     const isDoc = (deck.mode || 'deck') === 'doc';
-    const pageBackground = isDoc ? '' : await computeBodyBackground(deck.styleCss);
+    const pageBackground = isDoc ? '' : await computeBodyBackground(deck.styleCss, deck.canvas);
     const html = buildPrintHtml(deck, { pageBackground });
     return rpc('printExternal', { html });
   }

@@ -79,6 +79,17 @@
       A(!buildPrintHtml(fdeck, { pageBackground: '' }).includes('scale(0.6)'), 'arch: PDF non applica più transform da fitScale');
       A(!buildDeckHtml(fdeck).includes('scale(0.6)') && !buildDeckHtml(fdeck).includes('fitSlide'), 'arch: export HTML senza transform fit né auto-fit');
 
+      // ---- [F1] canvas PER-DECK: l'export usa deck.canvas (qualsiasi 16:9), non 1280 fisso ----
+      const bigDeck = { meta: { title: 'B', lang: 'it' }, mode: 'deck', canvas: { w: 1920, h: 1080 }, styleCss: '', slides: [{ id: 'a', classes: [], html: '<h1>A</h1>' }] };
+      const bigHtml = buildDeckHtml(bigDeck);
+      A(bigHtml.includes('1920px') && bigHtml.includes('1080px') && !bigHtml.includes('1280px'), 'F1: export HTML usa il canvas del deck (1920×1080)');
+      A(bigHtml.includes('W=1920,H=1080'), 'F1: lo scaling della shell usa il canvas del deck');
+      const bigPdf = buildPrintHtml(bigDeck, { pageBackground: '' });
+      A(bigPdf.includes('1920px') && bigPdf.includes('1080px'), 'F1: PDF .ss-page = canvas del deck');
+      A(bigPdf.includes('508.000mm') && bigPdf.includes('285.750mm'), 'F1: PDF @page = mm equivalenti (1920/96·25.4)');
+      // deck 1280 default: invariato (comportamento neutro)
+      A(buildDeckHtml(fdeck).includes('1280px') && buildPrintHtml(fdeck, { pageBackground: '' }).includes('338.667mm'), 'F1: deck 1280×720 invariato (default canonico)');
+
       // ---- id slide preservato (deck che stilano per #slide-N) ----
       const idDeck = parseDeck('<html><body><div class="deck"><section class="slide" id="slide-9"><h1>A</h1></section><section class="slide"><h1>B</h1></section></div></body></html>');
       A(idDeck.slides[0].elId === 'slide-9' && !idDeck.slides[1].elId, 'id: elId catturato da #slide-9 (vuoto se assente)');

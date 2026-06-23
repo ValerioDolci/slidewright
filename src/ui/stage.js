@@ -16,15 +16,17 @@ import { inline, externalize } from '../core/assets.js';
 // così l'id ORIGINALE della slide può essere conservato e le regole CSS del deck
 // che stilano per id (#slide-9 …) continuano ad applicarsi. Le forzature di geometria
 // (vedi [D4]) sono !important per vincere su eventuali #slide-N / .slide{width:…}.
-const IFRAME_CSS = `
-  html,body{margin:0;width:${CANVAS.w}px;height:${CANVAS.h}px;overflow:hidden}
-  /* [D4] TELA FISSA: la slide riempie SEMPRE il canvas ${CANVAS.w}×${CANVAS.h}, ancorata in
+// [F1] dimensione del canvas PER-DECK: la stessa CSS vale per qualsiasi misura 16:9
+// (1280×720 canonico, ma anche 1920×1080 ecc. dopo la conversione). cw/ch = deck.canvas.
+const iframeCss = (cw, ch) => `
+  html,body{margin:0;width:${cw}px;height:${ch}px;overflow:hidden}
+  /* [D4] TELA FISSA: la slide riempie SEMPRE il canvas ${cw}×${ch}, ancorata in
      alto a sinistra, senza transform del deck. left/top/width/height !important vincono su
      qualsiasi regola del deck (#slide-N, .slide{width:…}) → il box "fisso" è garantito, non
      aspirazionale. Contenuto che sfora → clippato da body{overflow:hidden} (badge ⚠). */
   .ss-root{position:absolute !important;left:0 !important;top:0 !important;
     right:auto !important;bottom:auto !important;margin:0 !important;
-    width:${CANVAS.w}px !important;height:${CANVAS.h}px !important;
+    width:${cw}px !important;height:${ch}px !important;
     opacity:1 !important;visibility:visible !important;
     transform:none !important;transition:none !important;pointer-events:auto !important}
   [${EDITOR_ATTR}]{cursor:default}
@@ -53,6 +55,8 @@ export class Stage {
     this.frame = frameEl;
     this.overlay = overlayEl;
     this.scale = 1;              // UNICA scala: canvas logico → pannello editor (esterna)
+    this.canvasW = CANVAS.w;     // [F1] dimensione canvas PER-DECK (default = canonico 1280×720)
+    this.canvasH = CANVAS.h;
     this.onSelect = () => {};
     this.onTextCommit = () => {};
     this.onBackground = () => {};
@@ -66,8 +70,8 @@ export class Stage {
     this._picking = null;        // callback "pipetta": prossimo click su un elemento → cb(el)
     this.selectedEid = null;     // eid selezionato (lo aggiorna l'App via onSelect)
 
-    this.canvas.style.width = `${CANVAS.w}px`;
-    this.canvas.style.height = `${CANVAS.h}px`;
+    this.canvas.style.width = `${this.canvasW}px`;
+    this.canvas.style.height = `${this.canvasH}px`;
     this.canvas.style.position = 'absolute';
     this.canvas.style.transformOrigin = 'top left';
 
@@ -84,9 +88,11 @@ export class Stage {
     return this.doc?.querySelector('.ss-root') || null;
   }
 
-  /** Scrive la slide nell'iframe e (ri)aggancia gli handler. */
-  render(slide, styleCss, mode = 'deck') {
+  /** Scrive la slide nell'iframe e (ri)aggancia gli handler.
+   *  `canvas` (opz.) = dimensione logica del deck {w,h}; default = canonico 1280×720. */
+  render(slide, styleCss, mode = 'deck', canvas = null) {
     this.mode = mode;
+    if (canvas && canvas.w && canvas.h) { this.canvasW = canvas.w; this.canvasH = canvas.h; }
     const doc = this.doc;
     doc.open();
     const idAttr = slide.elId ? ` id="${slide.elId}"` : '';
@@ -99,7 +105,7 @@ export class Stage {
     } else {
       doc.write(
         `<!DOCTYPE html><html><head><meta charset="UTF-8">` +
-        `<style>${styleCss || ''}</style><style>${IFRAME_CSS}</style></head>` +
+        `<style>${styleCss || ''}</style><style>${iframeCss(this.canvasW, this.canvasH)}</style></head>` +
         `<body><section${idAttr} class="slide active ss-root ${(slide.classes || []).join(' ')}">${inline(slide.html)}</section></body></html>`
       );
     }
@@ -135,7 +141,7 @@ export class Stage {
       }
     };
     walk(root);
-    return maxB > CANVAS.h + 2 || maxR > CANVAS.w + 2;
+    return maxB > this.canvasH + 2 || maxR > this.canvasW + 2;
   }
 
   /** Assicura un eid su ogni elemento della slide (per selezione stabile). */
@@ -388,7 +394,7 @@ export class Stage {
   rectOf(eid) {
     const elm = this.getElement(eid);
     if (!elm) return null;
-    // Con la tela fissa [D4] la root è a (0,0) di ${CANVAS.w}×${CANVAS.h} e NON ha transform
+    // Con la tela fissa [D4] la root è a (0,0) di canvasW×canvasH e NON ha transform
     // interni: il getBoundingClientRect dell'iframe È già nello spazio logico dell'overlay.
     // w/h dalla geometria di layout (offset*, NON ruotata); il centro dall'gBCR (AABB se
     // ruotato) è invariante alla rotazione → box corretto anche ruotato.
@@ -414,14 +420,14 @@ export class Stage {
     const sh = this.scene.clientHeight - pad * 2;
     if (sw <= 0 || sh <= 0) return;
     this.scene.style.overflow = 'hidden';
-    const s = Math.min(sw / CANVAS.w, sh / CANVAS.h);
+    const s = Math.min(sw / this.canvasW, sh / this.canvasH);
     this.scale = s;
     this.canvas.style.position = 'absolute';
-    this.canvas.style.width = `${CANVAS.w}px`;
-    this.canvas.style.height = `${CANVAS.h}px`;
+    this.canvas.style.width = `${this.canvasW}px`;
+    this.canvas.style.height = `${this.canvasH}px`;
     this.canvas.style.transform = `scale(${s})`;
-    this.canvas.style.left = `${Math.max(pad, (this.scene.clientWidth - CANVAS.w * s) / 2)}px`;
-    this.canvas.style.top = `${Math.max(pad, (this.scene.clientHeight - CANVAS.h * s) / 2)}px`;
+    this.canvas.style.left = `${Math.max(pad, (this.scene.clientWidth - this.canvasW * s) / 2)}px`;
+    this.canvas.style.top = `${Math.max(pad, (this.scene.clientHeight - this.canvasH * s) / 2)}px`;
     this.onScale?.(s);
   }
 

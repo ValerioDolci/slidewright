@@ -51,19 +51,19 @@ export function cleanSlideHtml(html) {
 // `.slide` una propria altezza/min-height/position (o usa vh) la renderebbe più alta del
 // canvas → layout verticale diverso dall'editor ("la parte bassa si sposta"). Forzandolo,
 // presentazione = editor pixel-per-pixel.
-const INNER_CSS = `
+// [F1] canvas PER-DECK (cw/ch): la stessa logica vale per qualsiasi misura 16:9.
+const innerCss = (cw, ch) => `
 html,body{margin:0;width:100%;height:100%;overflow:hidden}
-/* il wrapper riempie SEMPRE l'iframe (1280×720) ed è il blocco contenitore delle slide:
+/* il wrapper riempie SEMPRE l'iframe (${cw}×${ch}) ed è il blocco contenitore delle slide:
    senza forzarlo, un deck con regole proprie su .deck gli darebbe un'altezza diversa →
-   la slide (inset:0) erediterebbe quell'altezza e si spaginerebbe rispetto all'editor. */
+   la slide erediterebbe quell'altezza e si spaginerebbe rispetto all'editor. */
 .ss-deck{position:absolute !important;inset:0 !important;width:auto !important;
   height:auto !important;margin:0 !important;overflow:hidden}
-/* stesse forzature dell'editor (IFRAME_CSS .ss-root): riempi il canvas e NEUTRALIZZA
-   eventuali transform/transition del deck sulla slide (animazioni d'entrata ecc.).
-   L'auto-fit applica un transform inline !important quando una slide sfora. */
+/* stesse forzature dell'editor (IFRAME_CSS .ss-root): riempi il canvas ${cw}×${ch} e
+   NEUTRALIZZA eventuali transform/transition del deck sulla slide (animazioni d'entrata). */
 .ss-deck > .slide{position:absolute !important;left:0 !important;top:0 !important;
   right:auto !important;bottom:auto !important;margin:0 !important;
-  width:${CANVAS.w}px !important;height:${CANVAS.h}px !important;
+  width:${cw}px !important;height:${ch}px !important;
   transform:none !important;transition:opacity .35s ease !important}
 /* mechanics di navigazione con specificità REALE: il runtime decide SEMPRE quale slide
    è visibile, anche se il CSS del deck stila .slide (es. opacity/display/visibility). */
@@ -88,11 +88,11 @@ const INNER_JS = `(function(){
 })();`;
 
 // --- CSS della shell esterna (letterbox + scala) ---
-const SHELL_CSS = `
+const shellCss = (cw, ch) => `
 html,body{margin:0;height:100%}
 body{background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .ss-stage{flex:none;border:0;display:block;background:#000;
-  width:${CANVAS.w}px;height:${CANVAS.h}px;transform-origin:center center}
+  width:${cw}px;height:${ch}px;transform-origin:center center}
 .ss-nav{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9999;
   display:flex;gap:10px;align-items:center;font:13px ui-monospace,Menlo,monospace;
   color:#fff;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.18);
@@ -103,8 +103,8 @@ body:hover .ss-nav{opacity:.9}
 @media print{.ss-nav{display:none}}`;
 
 // --- JS della shell: scala l'iframe al viewport + instrada le frecce all'iframe ---
-const SHELL_JS = `(function(){
-  var W=${CANVAS.w},H=${CANVAS.h};
+const shellJs = (cw, ch) => `(function(){
+  var W=${cw},H=${ch};
   var frame=document.querySelector('.ss-stage'), counter=document.querySelector('.ss-nav__c');
   function fit(){ if(frame){ var s=Math.min(window.innerWidth/W, window.innerHeight/H); frame.style.transform='scale('+s+')'; } }
   window.addEventListener('resize',fit); window.addEventListener('orientationchange',fit);
@@ -125,6 +125,7 @@ const SHELL_JS = `(function(){
 function buildInnerDeckDoc(deck) {
   const lang = deck.meta?.lang || 'it';
   const title = deck.meta?.title || 'Deck';
+  const cw = deck.canvas?.w || CANVAS.w, ch = deck.canvas?.h || CANVAS.h; // [F1] canvas per-deck
   const sections = deck.slides
     .map((s, idx) => {
       const cls = ['slide', ...(s.classes || []), idx === 0 ? 'active' : ''].filter(Boolean).join(' ');
@@ -134,7 +135,7 @@ function buildInnerDeckDoc(deck) {
     .join('\n');
   return `<!DOCTYPE html>${CREDIT}<html lang="${escapeAttr(lang)}"><head><meta charset="UTF-8" />` +
     `<title>${escapeHtml(title)}</title>\n<style>\n${deck.styleCss || ''}\n</style>\n` +
-    `<style data-ss-runtime>${INNER_CSS}</style></head>` +
+    `<style data-ss-runtime>${innerCss(cw, ch)}</style></head>` +
     `<body><div class="deck ss-deck">\n${sections}\n</div>` +
     `<script data-ss-runtime>${INNER_JS}</script></body></html>`;
 }
@@ -143,6 +144,7 @@ export function buildDeckHtml(deck) {
   if ((deck.mode || 'deck') === 'doc') return buildDocHtml(deck);
   const lang = deck.meta?.lang || 'it';
   const title = deck.meta?.title || 'Deck';
+  const cw = deck.canvas?.w || CANVAS.w, ch = deck.canvas?.h || CANVAS.h; // [F1] canvas per-deck
   const srcdoc = escapeSrcdoc(buildInnerDeckDoc(deck));
 
   return `<!DOCTYPE html>
@@ -152,7 +154,7 @@ ${CREDIT}
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${escapeHtml(title)}</title>
-  <style data-ss-runtime>${SHELL_CSS}</style>
+  <style data-ss-runtime>${shellCss(cw, ch)}</style>
 </head>
 <body>
   <iframe class="ss-stage" title="${escapeAttr(title)}" srcdoc="${srcdoc}"></iframe>
@@ -161,7 +163,7 @@ ${CREDIT}
     <span class="ss-nav__c"></span>
     <button data-n title="Successiva">›</button>
   </div>
-  <script data-ss-runtime>${SHELL_JS}</script>
+  <script data-ss-runtime>${shellJs(cw, ch)}</script>
 </body>
 </html>
 `;

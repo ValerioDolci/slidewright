@@ -8,7 +8,7 @@
  */
 
 import { store } from '../core/store.js';
-import { createDeck, createSlide, cloneDeck, emptySlideHtml, welcomeDeck, CANVAS } from '../core/model.js';
+import { createDeck, createSlide, cloneDeck, emptySlideHtml, welcomeDeck } from '../core/model.js';
 import { parseDeck } from '../core/import.js';
 import { buildDeckHtml } from '../core/export-html.js';
 import { Stage } from './stage.js';
@@ -318,7 +318,7 @@ export class App {
   renderAll() {
     this.selection.onChange = () => { this.commitStage('Sposta/ridimensiona'); this.selection.refresh(); };
     this._applyMode();
-    this.stage.render(store.currentSlide, store.deck.styleCss, store.deck.mode);
+    this.stage.render(store.currentSlide, store.deck.styleCss, store.deck.mode, store.deck.canvas);
     this.sidebar.render(store.deck, store.currentIndex);
     this.inspector.clear();
     this.selection.hide();
@@ -328,7 +328,7 @@ export class App {
 
   renderStageOnly() {
     this._applyMode();
-    this.stage.render(store.currentSlide, store.deck.styleCss, store.deck.mode);
+    this.stage.render(store.currentSlide, store.deck.styleCss, store.deck.mode, store.deck.canvas);
     this.inspector.clear();
     this.selection.hide();
     this._updateZoom();
@@ -389,8 +389,8 @@ export class App {
     if (!slide) return;
     node.setAttribute(EDITOR_ATTR, uid('e'));
     node.style.position = 'absolute';
-    node.style.left = `${Math.round((CANVAS.w - w) / 2)}px`;
-    node.style.top = `${Math.round((CANVAS.h - h) / 2)}px`;
+    node.style.left = `${Math.round((this.stage.canvasW - w) / 2)}px`; // [F1] centra nel canvas per-deck
+    node.style.top = `${Math.round((this.stage.canvasH - h) / 2)}px`;
     node.style.width = `${w}px`;
     slide.appendChild(node);
     this.commitStage('Aggiungi elemento');
