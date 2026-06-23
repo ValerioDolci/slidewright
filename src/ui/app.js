@@ -178,7 +178,6 @@ export class App {
     this._buildIconMenu();
     on('add-icon', (e) => this._openMenu($('#icon-menu'), e.currentTarget));
     on('add-slide', () => this._addSlide());
-    on('fit-slide', () => this._toggleFit());
     on('present', () => this._present());
     const help = $('#help-pop');
     on('help', () => { help.hidden = false; });
@@ -325,7 +324,6 @@ export class App {
     this.selection.hide();
     this._updateToolbarState();
     this._updateZoom();
-    this._updateFitButton();
   }
 
   renderStageOnly() {
@@ -334,35 +332,6 @@ export class App {
     this.inspector.clear();
     this.selection.hide();
     this._updateZoom();
-    this._updateFitButton();
-  }
-
-  /** "Adatta alla slide": rimpicciolisce la slide corrente per farla stare intera
-   *  nel canvas (utile per slide troppo dense/alte). Ri-clic = torna a dimensione piena. */
-  _toggleFit() {
-    if ((store.deck.mode || 'deck') === 'doc') return;
-    const cur = store.currentIndex;
-    const s = store.currentSlide;
-    if (s && s.fitScale && s.fitScale < 1) {
-      store.commit('Annulla adatta', (d) => { delete d.slides[cur].fitScale; });
-      this._hint('Slide a dimensione piena.');
-    } else {
-      const scale = this.stage.measureFitScale();
-      if (scale >= 1) { this._hint('La slide è già contenuta nel riquadro.'); return; }
-      store.commit('Adatta alla slide', (d) => { d.slides[cur].fitScale = scale; });
-      this._hint(`Slide adattata al ${Math.round(scale * 100)}% per starci intera.`);
-    }
-    this.renderStageOnly();
-    this.sidebar.refreshThumb(store.deck, cur);
-  }
-
-  _updateFitButton() {
-    const b = $('#stage-fit');
-    if (!b) return;
-    b.hidden = (store.deck.mode || 'deck') === 'doc';
-    const on = !!(store.currentSlide && store.currentSlide.fitScale && store.currentSlide.fitScale < 1);
-    b.classList.toggle('is-on', on);
-    b.textContent = t(on ? '⤢ Adattata' : '⤢ Adatta');
   }
 
   gotoSlide(i, skipSync = false) {

@@ -174,14 +174,6 @@ button { font-family: inherit; }
   background: var(--amber-bright); padding: 2px 8px; border-radius: 3px; font-weight: 700;
 }
 .stage__warn[hidden] { display: none; }
-.stage__fit {
-  font-family: var(--font-mono); font-size: 11px; cursor: pointer;
-  border: 1px solid var(--line); border-radius: 3px;
-  background: var(--ink-800); color: var(--fg-dim); padding: 2px 8px;
-}
-.stage__fit:hover { color: var(--fg); border-color: var(--amber); }
-.stage__fit.is-on { background: rgba(180,83,9,0.2); border-color: var(--amber); color: var(--fg); }
-
 /* guide di allineamento (snap) — coordinate logiche nel .overlay */
 .guides { position: absolute; inset: 0; pointer-events: none; }
 .guide--v { position: absolute; top: 0; height: 100%; width: 0; border-left: 1.5px solid #22d3ee; }

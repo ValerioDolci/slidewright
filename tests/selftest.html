@@ -72,10 +72,12 @@
       const printHtml = buildPrintHtml(dnDeck, { pageBackground: '' });
       A((printHtml.match(/class="slide active/g) || []).length === 2, 'pdf: ogni pagina ha la classe active (slide display:none non escono vuote)');
 
-      // ---- adatta alla slide: il fitScale viene applicato in export PDF e HTML ----
+      // ---- [ARCH] tela fissa: niente adattamento del contenuto in export (no fitScale) ----
+      // Anche se una slide porta un (vecchio) fitScale nel modello, l'export NON applica
+      // più transform: la tela è fissa 1280×720, scalata solo esternamente (shell/pagina).
       const fdeck = { meta: { title: 'T', lang: 'it' }, mode: 'deck', canvas: { w: 1280, h: 720 }, styleCss: '', slides: [{ id: 'a', classes: [], html: '<h1>A</h1>', fitScale: 0.6 }] };
-      A(buildPrintHtml(fdeck, { pageBackground: '' }).includes('scale(0.6)'), 'adatta: PDF applica scale(fitScale)');
-      A(buildDeckHtml(fdeck).includes('scale(0.6)'), 'adatta: export HTML applica scale(fitScale)');
+      A(!buildPrintHtml(fdeck, { pageBackground: '' }).includes('scale(0.6)'), 'arch: PDF non applica più transform da fitScale');
+      A(!buildDeckHtml(fdeck).includes('scale(0.6)') && !buildDeckHtml(fdeck).includes('fitSlide'), 'arch: export HTML senza transform fit né auto-fit');
 
       // ---- id slide preservato (deck che stilano per #slide-N) ----
       const idDeck = parseDeck('<html><body><div class="deck"><section class="slide" id="slide-9"><h1>A</h1></section><section class="slide"><h1>B</h1></section></div></body></html>');
@@ -251,33 +253,25 @@
       xEl.style.transform = 'rotate(30deg)';
       A(Math.abs(stage.rectOf(xEl.getAttribute(EDITOR_ATTR)).angle - 30) <= 1, 'rotazione: rectOf legge 30°');
 
-      // adatta alla slide: misura della scala + contentScale/effScale al render
+      // ---- [ARCH] tela fissa: niente contentScale, niente adattamento del contenuto ----
+      A(stage.contentScale === undefined && stage.effScale === undefined, 'arch: contentScale/effScale rimossi dallo Stage');
+      // contenuto più alto del canvas → la root resta 1280×720 (D4), overflow segnalato (no fit)
       stage.render({ id: 'tall', classes: [], html: '<div style="height:1400px;background:#333"></div>' }, '', 'deck');
       await new Promise((r) => setTimeout(r, 30));
-      const mfs = stage.measureFitScale();
-      A(mfs > 0.4 && mfs < 0.6, `adatta: scala ~0.5 per contenuto 2× più alto (${mfs})`);
-      stage.render({ id: 'tall2', classes: [], html: '<div style="height:1400px;background:#333"><div data-tag="inner" style="width:400px;height:80px;background:#555"></div></div>', fitScale: mfs }, '', 'deck');
-      await new Promise((r) => setTimeout(r, 20));
-      A(Math.abs(stage.contentScale - mfs) < 1e-6, 'adatta: contentScale = fitScale al render');
-      A(Math.abs(stage.effScale - stage.scale * mfs) < 1e-6, 'adatta: effScale = scale × contentScale');
-      const ctf = stage.doc.defaultView.getComputedStyle(stage.slideEl).transform;
-      A(ctf !== 'none' && /matrix/.test(ctf), 'adatta: transform applicato davvero (vince sul !important della root)');
-      // interazione fit × selezione/makeFree (review Opus): niente doppio-scaling
-      const inner = stage.slideEl.querySelector('[data-tag="inner"]');
-      const ieid = inner.getAttribute(EDITOR_ATTR);
-      const roF = stage.rectOf(ieid), gbF = inner.getBoundingClientRect();
-      A(Math.abs(roF.w - gbF.width) < 2 && Math.abs(roF.x - gbF.left) < 2, 'adatta×sel: rectOf combacia col visivo (no doppio-scaling)');
-      const owF = inner.offsetWidth, ohF = inner.offsetHeight;
-      stage.makeFree(inner);
-      A(Math.abs(inner.offsetWidth - owF) < 3 && Math.abs(inner.offsetHeight - ohF) < 3, 'adatta×makeFree: dimensione invariata (offset*, no doppio-scaling)');
-
-      // auto-adatta: deck con slide a dimensione PROPRIA (≠ canvas) → scala per riempire
-      stage.render({ id: 'fx', classes: [], html: '<h1>X</h1>' }, '.slide{width:960px;height:540px}', 'deck');
+      const tallRoot = stage.slideEl;
+      A(Math.abs(tallRoot.offsetHeight - 720) <= 1 && Math.abs(tallRoot.offsetWidth - 1280) <= 1, 'arch[D4]: root forzata 1280×720 con contenuto 1400px (no scaling)');
+      A(stage.doc.defaultView.getComputedStyle(tallRoot).transform === 'none', 'arch: nessun transform di adattamento sulla root');
+      A(stage._checkOverflow() === true, 'arch: overflow rilevato (badge) su contenuto che sfora');
+      // D4: il deck impone .slide{width:960!important} → NON vince, la tela resta 1280×720
+      stage.render({ id: 'own', classes: [], html: '<h1>X</h1>' }, '.slide{width:960px!important;height:540px!important}', 'deck');
       await new Promise((r) => setTimeout(r, 30));
-      A(Math.abs(stage.contentScale - Math.min(1280 / 960, 720 / 540)) < 0.02, 'auto-adatta: scala per riempire un deck 960×540 (' + stage.contentScale.toFixed(3) + ')');
-      stage.render({ id: 'full', classes: [], html: '<h1>Y</h1>' }, '', 'deck');
+      A(Math.abs(stage.slideEl.offsetWidth - 1280) <= 1 && Math.abs(stage.slideEl.offsetHeight - 720) <= 1, 'arch[D4]: .slide{width:960!important} del deck NON cambia la tela 1280×720');
+      // rectOf = geometria reale (offset*), senza compensazione di scala
+      stage.render({ id: 'r', classes: [], html: '<div data-tag="b" style="position:absolute;left:100px;top:60px;width:300px;height:150px;background:#555"></div>' }, '', 'deck');
       await new Promise((r) => setTimeout(r, 20));
-      A(stage.contentScale === 1, 'auto-adatta: un deck che riempie già NON viene scalato');
+      const bEl = stage.slideEl.querySelector('[data-tag="b"]'); const beid = bEl.getAttribute(EDITOR_ATTR);
+      const ro = stage.rectOf(beid);
+      A(Math.abs(ro.w - 300) <= 1 && Math.abs(ro.h - 150) <= 1 && Math.abs(ro.x - 100) <= 1 && Math.abs(ro.y - 60) <= 1, 'arch: rectOf = geometria reale (offset*, no contentScale)');
       // id originale preservato sulla root (CSS #slide-N del deck)
       stage.render({ id: 'x', elId: 'slide-9', classes: [], html: '<h1>A</h1>' }, '', 'deck');
       await new Promise((r) => setTimeout(r, 20));

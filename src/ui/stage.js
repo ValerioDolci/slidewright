@@ -14,12 +14,18 @@ import { inline, externalize } from '../core/assets.js';
 // CSS iniettato SOLO nell'iframe dell'editor (mai esportato).
 // NB: la root della slide è marcata con la classe `.ss-root` (NON con un id fisso):
 // così l'id ORIGINALE della slide può essere conservato e le regole CSS del deck
-// che stilano per id (#slide-9 …) continuano ad applicarsi. `position` è !important
-// per vincere su eventuali #slide-N; `inset` resta normale così "Adatta" può alzare l'altezza.
+// che stilano per id (#slide-9 …) continuano ad applicarsi. Le forzature di geometria
+// (vedi [D4]) sono !important per vincere su eventuali #slide-N / .slide{width:…}.
 const IFRAME_CSS = `
   html,body{margin:0;width:${CANVAS.w}px;height:${CANVAS.h}px;overflow:hidden}
-  /* la slide in editing è sempre piena e ferma */
-  .ss-root{position:absolute !important;inset:0;opacity:1 !important;visibility:visible !important;
+  /* [D4] TELA FISSA: la slide riempie SEMPRE il canvas ${CANVAS.w}×${CANVAS.h}, ancorata in
+     alto a sinistra, senza transform del deck. left/top/width/height !important vincono su
+     qualsiasi regola del deck (#slide-N, .slide{width:…}) → il box "fisso" è garantito, non
+     aspirazionale. Contenuto che sfora → clippato da body{overflow:hidden} (badge ⚠). */
+  .ss-root{position:absolute !important;left:0 !important;top:0 !important;
+    right:auto !important;bottom:auto !important;margin:0 !important;
+    width:${CANVAS.w}px !important;height:${CANVAS.h}px !important;
+    opacity:1 !important;visibility:visible !important;
     transform:none !important;transition:none !important;pointer-events:auto !important}
   [${EDITOR_ATTR}]{cursor:default}
   [${EDITOR_ATTR}]:not(.ss-root):hover{outline:1px dashed rgba(180,83,9,.55);outline-offset:1px}
@@ -46,8 +52,7 @@ export class Stage {
     this.canvas = canvasEl;
     this.frame = frameEl;
     this.overlay = overlayEl;
-    this.scale = 1;
-    this.contentScale = 1;       // scala "Adatta alla slide" applicata al contenuto
+    this.scale = 1;              // UNICA scala: canvas logico → pannello editor (esterna)
     this.onSelect = () => {};
     this.onTextCommit = () => {};
     this.onBackground = () => {};
@@ -102,62 +107,10 @@ export class Stage {
     this._editingEid = null;
     this._stampEids();
     this._wireEvents();
-    this._applyContentFit(slide);
     this.fitScale();
-    // se la slide è "adattata" (contentScale<1) per definizione ci sta tutta → no badge
-    this.onOverflow(mode === 'deck' && this.contentScale >= 1 ? this._checkOverflow() : false);
-  }
-
-  /** "Adatta alla slide": se la slide ha `fitScale`, scala il contenuto per
-   *  farlo stare intero nel canvas (centrato in alto). `contentScale` serve poi
-   *  alla selezione per i delta di trascinamento/resize. */
-  _applyContentFit(slide) {
-    this.contentScale = 1;
-    const root = this.slideEl;
-    if (!root || this.mode === 'doc') return;
-
-    // "Adatta" MANUALE (overflow): ha la precedenza. Rimpicciolisce a fitScale.
-    const fs = slide && slide.fitScale;
-    if (fs && fs < 1) {
-      root.style.height = 'auto';
-      root.style.bottom = 'auto';
-      // !important inline: vince sul `transform:none !important` dell'IFRAME_CSS della root
-      root.style.setProperty('transform-origin', 'top center', 'important');
-      root.style.setProperty('transform', `scale(${fs})`, 'important');
-      this.contentScale = fs;
-      return;
-    }
-
-    // AUTO-ADATTA: se il deck dà alla slide una dimensione PROPRIA diversa dal canvas
-    // (es. .slide{width:960px;height:540px}), la slide non riempirebbe il riquadro.
-    // La scalo per riempirlo (sia su che giù), ancorata in alto a sinistra.
-    const ow = root.offsetWidth, oh = root.offsetHeight;
-    if (ow && oh && (Math.abs(ow - CANVAS.w) > 2 || Math.abs(oh - CANVAS.h) > 2)) {
-      const s = Math.min(CANVAS.w / ow, CANVAS.h / oh);
-      if (Math.abs(s - 1) > 0.01) {
-        root.style.left = '0'; root.style.top = '0';
-        root.style.right = 'auto'; root.style.bottom = 'auto'; root.style.margin = '0';
-        root.style.setProperty('transform-origin', 'top left', 'important');
-        root.style.setProperty('transform', `scale(${s})`, 'important');
-        this.contentScale = s;
-      }
-    }
-  }
-
-  /** Scala necessaria per far stare l'intera slide corrente nel canvas (≤1).
-   *  Misurata sul render attuale NON adattato (scrollHeight = contenuto pieno). */
-  measureFitScale() {
-    const root = this.slideEl;
-    if (!root) return 1;
-    const h = root.scrollHeight, w = root.scrollWidth;
-    // -6px di margine: evita di rifilare di 1-2px footer/ultimo elemento
-    const s = Math.min((CANVAS.h - 6) / Math.max(h, 1), (CANVAS.w - 6) / Math.max(w, 1), 1);
-    return Math.max(0.2, Math.round(s * 1000) / 1000);
-  }
-
-  /** Scala effettiva del contenuto sullo schermo (canvas × adatta-slide). */
-  get effScale() {
-    return this.scale * (this.contentScale || 1);
+    // tela fissa (niente adattamento del contenuto): se il contenuto sfora i bordi del
+    // canvas verrà clippato in proiezione/stampa → lo segnaliamo col badge ⚠.
+    this.onOverflow(mode === 'deck' ? this._checkOverflow() : false);
   }
 
   /** true se il contenuto IN FLUSSO eccede il canvas logico (verrà tagliato).
@@ -365,8 +318,7 @@ export class Stage {
     const cs = this.doc.defaultView.getComputedStyle(elm);
     if (cs.position === 'absolute' || cs.position === 'fixed') return;
     // offset* = geometria di LAYOUT (relativa all'offsetParent), NON influenzata da
-    // transform (rotazione/fit) né da scroll → coerente con `position:absolute`.
-    // (gBCR sarebbe scalato sotto "Adatta" → doppio-scaling. Vedi review.)
+    // transform (rotazione) né da scroll → coerente con `position:absolute`.
     const ow = elm.offsetWidth, oh = elm.offsetHeight, ol = elm.offsetLeft, ot = elm.offsetTop;
     const sp = this.doc.createElement('div');
     sp.setAttribute('data-ss-spacer', elm.getAttribute(EDITOR_ATTR) || '');
@@ -436,12 +388,13 @@ export class Stage {
   rectOf(eid) {
     const elm = this.getElement(eid);
     if (!elm) return null;
-    const r = elm.getBoundingClientRect(); // coord. logiche iframe; AABB se ruotato; SCALATO se "Adatta"
-    const cs = this.contentScale || 1;
-    // offset* ignorano i transform (dim. NON ruotata e NON scalata): vanno riportate
-    // nello spazio visivo moltiplicando per contentScale; il centro viene dall'gBCR (già scalato).
-    const w = elm.offsetWidth ? elm.offsetWidth * cs : r.width;
-    const h = elm.offsetHeight ? elm.offsetHeight * cs : r.height;
+    // Con la tela fissa [D4] la root è a (0,0) di ${CANVAS.w}×${CANVAS.h} e NON ha transform
+    // interni: il getBoundingClientRect dell'iframe È già nello spazio logico dell'overlay.
+    // w/h dalla geometria di layout (offset*, NON ruotata); il centro dall'gBCR (AABB se
+    // ruotato) è invariante alla rotazione → box corretto anche ruotato.
+    const r = elm.getBoundingClientRect();
+    const w = elm.offsetWidth || r.width;
+    const h = elm.offsetHeight || r.height;
     const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     return { x: cx - w / 2, y: cy - h / 2, w, h, angle: this._angleOf(elm) };
   }

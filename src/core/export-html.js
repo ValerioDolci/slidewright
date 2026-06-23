@@ -61,7 +61,9 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden}
 /* stesse forzature dell'editor (IFRAME_CSS .ss-root): riempi il canvas e NEUTRALIZZA
    eventuali transform/transition del deck sulla slide (animazioni d'entrata ecc.).
    L'auto-fit applica un transform inline !important quando una slide sfora. */
-.ss-deck > .slide{position:absolute !important;inset:0;margin:0 !important;
+.ss-deck > .slide{position:absolute !important;left:0 !important;top:0 !important;
+  right:auto !important;bottom:auto !important;margin:0 !important;
+  width:${CANVAS.w}px !important;height:${CANVAS.h}px !important;
   transform:none !important;transition:opacity .35s ease !important}
 /* mechanics di navigazione con specificità REALE: il runtime decide SEMPRE quale slide
    è visibile, anche se il CSS del deck stila .slide (es. opacity/display/visibility). */
@@ -70,25 +72,8 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden}
 
 // --- JS dentro l'iframe: naviga le slide + espone window.__ssNav alla shell ---
 const INNER_JS = `(function(){
-  var W=${CANVAS.w},H=${CANVAS.h};
   var slides=[].slice.call(document.querySelectorAll('.ss-deck > .slide'));
   if(!slides.length)return;
-  // AUTO-ADATTA come fa l'editor (_applyContentFit di stage.js): se una slide è più
-  // grande del canvas (es. contenuto/min-height oltre 720), la scala per starci intera,
-  // ancorata in alto a sinistra. Identico all'editor → presentazione = editor.
-  function fitSlide(sec){
-    if(sec.style.transform) return;            // fitScale manuale già applicato in export
-    var ow=sec.offsetWidth, oh=sec.offsetHeight;
-    if(ow&&oh&&(Math.abs(ow-W)>2||Math.abs(oh-H)>2)){
-      var s=Math.min(W/ow,H/oh);
-      if(Math.abs(s-1)>0.01){
-        sec.style.left='0';sec.style.top='0';sec.style.right='auto';sec.style.bottom='auto';sec.style.margin='0';
-        sec.style.setProperty('transform-origin','top left','important');
-        sec.style.setProperty('transform','scale('+s+')','important');
-      }
-    }
-  }
-  slides.forEach(fitSlide);
   var i=Math.max(0,slides.findIndex(function(s){return s.classList.contains('active')})); if(i<0)i=0;
   function show(n){i=Math.max(0,Math.min(n,slides.length-1));
     slides.forEach(function(s,k){s.classList.toggle('active',k===i)});
@@ -143,10 +128,8 @@ function buildInnerDeckDoc(deck) {
   const sections = deck.slides
     .map((s, idx) => {
       const cls = ['slide', ...(s.classes || []), idx === 0 ? 'active' : ''].filter(Boolean).join(' ');
-      const fs = s.fitScale && s.fitScale < 1 ? s.fitScale : 0;
-      const st = fs ? ` style="transform:scale(${fs});transform-origin:top center"` : '';
       const id = s.elId ? ` id="${s.elId}"` : ''; // preserva l'id (CSS #slide-N del deck)
-      return `<section${id} class="${cls}"${st}>${cleanSlideHtml(s.html)}</section>`;
+      return `<section${id} class="${cls}">${cleanSlideHtml(s.html)}</section>`;
     })
     .join('\n');
   return `<!DOCTYPE html>${CREDIT}<html lang="${escapeAttr(lang)}"><head><meta charset="UTF-8" />` +

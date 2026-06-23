@@ -28,14 +28,11 @@ export class Sidebar {
 
   _thumbDoc(deck, slide) {
     const id = slide.elId ? ` id="${slide.elId}"` : '';     // preserva l'id (CSS #slide-N del deck)
-    const fs = slide.fitScale && slide.fitScale < 1 ? slide.fitScale : 0;
-    const fit = fs
-      ? `.ss-root{height:auto!important;bottom:auto!important;transform:scale(${fs})!important;transform-origin:top center!important}`
-      : '';
+    // stessa forzatura "tela fissa" dell'editor [D4]: ${CANVAS.w}×${CANVAS.h}, niente
+    // adattamento; contenuto che sfora clippato (coerente con editor/presentazione).
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${deck.styleCss || ''}</style>
 <style>html,body{margin:0;width:${CANVAS.w}px;height:${CANVAS.h}px;overflow:hidden;pointer-events:none}
-.ss-root{position:absolute !important;inset:0;opacity:1!important;visibility:visible!important;transform:none!important;transition:none!important}
-${fit}</style>
+.ss-root{position:absolute !important;left:0!important;top:0!important;right:auto!important;bottom:auto!important;margin:0!important;width:${CANVAS.w}px!important;height:${CANVAS.h}px!important;opacity:1!important;visibility:visible!important;transform:none!important;transition:none!important}</style>
 </head><body><section${id} class="slide active ss-root ${(slide.classes || []).join(' ')}">${inline(slide.html)}</section></body></html>`;
   }
 

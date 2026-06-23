@@ -38,13 +38,8 @@ export function buildPrintHtml(deck, { pageBackground = '' } = {}) {
       // + .slide.active{display:flex} altrimenti stamperebbero pagine vuote (qui ogni
       // pagina è una slide a sé, tutte vanno rese visibili). Innocuo per i deck a opacità.
       const cls = ['slide', 'active', ...(s.classes || [])].filter(Boolean).join(' ');
-      const fs = s.fitScale && s.fitScale < 1 ? s.fitScale : 0;
-      const st = fs
-        ? ` style="top:0 !important;left:0 !important;right:auto !important;bottom:auto !important;` +
-          `height:auto !important;width:100% !important;transform:scale(${fs}) !important;transform-origin:top center"`
-        : '';
       const id = s.elId ? ` id="${s.elId}"` : ''; // preserva l'id (CSS #slide-N del deck)
-      return `<div class="ss-page"><section${id} class="${cls}"${st}>${cleanSlideHtml(s.html)}</section></div>`;
+      return `<div class="ss-page"><section${id} class="${cls}">${cleanSlideHtml(s.html)}</section></div>`;
     })
     .join('\n');
 

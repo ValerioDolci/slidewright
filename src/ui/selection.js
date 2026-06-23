@@ -167,17 +167,21 @@ export class SelectionLayer {
     const sx = e.clientX, sy = e.clientY;
     const through = e.altKey || e.metaKey;
     const ang = this.stage.rectOf(this.eid)?.angle || 0; // niente snap se ruotato
-    const snapOk = (this.stage.contentScale || 1) >= 1;   // niente snap se "Adattata"
     let started = false, init = null;
 
     const begin = () => {
       this._ensureAbsolute(elm);
+      // [D5] spazio UNICO di coordinate: lo snap lavora in coord. VIEWPORT dell'iframe
+      // (= overlay logico, con la root a 0,0), dove vivono anche i bersagli. Scrivo poi
+      // style.left/top nello spazio dell'offsetParent: i due spazi differiscono per una
+      // TRASLAZIONE costante (off), quindi i delta sono identici e basta riportarli.
+      const r = elm.getBoundingClientRect();
       init = {
-        s: this.stage.effScale,
-        x0: this._num(elm.style.left),
-        y0: this._num(elm.style.top),
-        w: elm.getBoundingClientRect().width,
-        h: elm.getBoundingClientRect().height,
+        s: this.stage.scale,
+        sl0: this._num(elm.style.left),     // offsetParent-space (per scrivere)
+        st0: this._num(elm.style.top),
+        vl0: r.left, vt0: r.top,            // viewport-space (per lo snap)
+        w: r.width, h: r.height,
         targets: this._snapTargets(),
       };
     };
@@ -187,16 +191,17 @@ export class SelectionLayer {
         if (Math.abs(ev.clientX - sx) < 4 && Math.abs(ev.clientY - sy) < 4) return;
         started = true; begin();
       }
-      let x = Math.round(init.x0 + (ev.clientX - sx) / init.s);
-      let y = Math.round(init.y0 + (ev.clientY - sy) / init.s);
+      let vl = init.vl0 + (ev.clientX - sx) / init.s;  // posizione viewport (no snap)
+      let vt = init.vt0 + (ev.clientY - sy) / init.s;
       let vx = null, hy = null;
-      if (!ev.altKey && ang === 0 && snapOk) { // Alt / ruotato / adattato = niente snap
-        const sX = this._snapAxis([x, x + init.w / 2, x + init.w], init.targets.X);
-        const sY = this._snapAxis([y, y + init.h / 2, y + init.h], init.targets.Y);
-        x += sX.delta; y += sY.delta; vx = sX.line; hy = sY.line;
+      if (!ev.altKey && ang === 0) { // Alt / ruotato = niente snap (snap sempre attivo altrimenti)
+        const sX = this._snapAxis([vl, vl + init.w / 2, vl + init.w], init.targets.X);
+        const sY = this._snapAxis([vt, vt + init.h / 2, vt + init.h], init.targets.Y);
+        vl += sX.delta; vt += sY.delta; vx = sX.line; hy = sY.line;
       }
-      elm.style.left = `${x}px`;
-      elm.style.top = `${y}px`;
+      // riporto nello spazio dell'offsetParent (stesso delta): sl0 + (vl - vl0)
+      elm.style.left = `${Math.round(init.sl0 + (vl - init.vl0))}px`;
+      elm.style.top = `${Math.round(init.st0 + (vt - init.vt0))}px`;
       this.refresh();
       this._drawGuides(vx, hy);
     };
@@ -233,13 +238,15 @@ export class SelectionLayer {
     if ((this.stage.rectOf(this.eid)?.angle || 0) !== 0) return this._startResizeRotated(e, dir, elm);
     try { this.box.setPointerCapture(e.pointerId); } catch (_) { /* headless/no-pointer */ }
     this._ensureAbsolute(elm);
-    const sx = e.clientX, sy = e.clientY, s = this.stage.effScale;
+    const sx = e.clientX, sy = e.clientY, s = this.stage.scale;
     const x0 = this._num(elm.style.left), y0 = this._num(elm.style.top);
-    // offset* (NON scalati): sotto "Adatta" il gBCR sarebbe scalato → il resize "saltava"
     const w0 = elm.offsetWidth;
     const h0 = elm.offsetHeight;
     const ratio = h0 > 0 ? w0 / h0 : 1;
-    const snapOk = (this.stage.contentScale || 1) >= 1; // snap solo a scala piena
+    // [D5] offset costante offsetParent → viewport: i bordi vanno confrontati coi bersagli
+    // nello spazio viewport (= overlay), non in quello dell'offsetParent.
+    const r0 = elm.getBoundingClientRect();
+    const offX = r0.left - x0, offY = r0.top - y0;
     const west = dir.includes('w'), east = dir.includes('e');
     const north = dir.includes('n'), south = dir.includes('s');
     const corner = (west || east) && (north || south);
@@ -263,13 +270,14 @@ export class SelectionLayer {
       if (west) x = x0 + (w0 - w);
       if (north) y = y0 + (h0 - h);
 
-      // snap del bordo mosso (no in ratio-lock per non litigare col vincolo)
+      // snap del bordo mosso in spazio VIEWPORT (bordo + offX/offY); il delta è identico
+      // nei due spazi (traslazione) → lo applico a x/w. (no in ratio-lock / Alt)
       let vx = null, hy = null;
-      if (!ev.shiftKey && !ev.altKey && snapOk) {
-        if (east) { const sn = this._snapAxis([x + w], targets.X); if (sn.line != null) { w = Math.max(16, w + sn.delta); vx = sn.line; } }
-        else if (west) { const sn = this._snapAxis([x], targets.X); if (sn.line != null) { x += sn.delta; w = Math.max(16, w - sn.delta); vx = sn.line; } }
-        if (south) { const sn = this._snapAxis([y + h], targets.Y); if (sn.line != null) { h = Math.max(16, h + sn.delta); hy = sn.line; } }
-        else if (north) { const sn = this._snapAxis([y], targets.Y); if (sn.line != null) { y += sn.delta; h = Math.max(16, h - sn.delta); hy = sn.line; } }
+      if (!ev.shiftKey && !ev.altKey) {
+        if (east) { const sn = this._snapAxis([x + w + offX], targets.X); if (sn.line != null) { w = Math.max(16, w + sn.delta); vx = sn.line; } }
+        else if (west) { const sn = this._snapAxis([x + offX], targets.X); if (sn.line != null) { x += sn.delta; w = Math.max(16, w - sn.delta); vx = sn.line; } }
+        if (south) { const sn = this._snapAxis([y + h + offY], targets.Y); if (sn.line != null) { h = Math.max(16, h + sn.delta); hy = sn.line; } }
+        else if (north) { const sn = this._snapAxis([y + offY], targets.Y); if (sn.line != null) { y += sn.delta; h = Math.max(16, h - sn.delta); hy = sn.line; } }
       }
 
       elm.style.left = `${Math.round(x)}px`;
@@ -288,7 +296,7 @@ export class SelectionLayer {
   _startResizeRotated(e, dir, elm) {
     try { this.box.setPointerCapture(e.pointerId); } catch (_) { /* noop */ }
     this._ensureAbsolute(elm);
-    const s = this.stage.effScale;
+    const s = this.stage.scale;
     const ang = (this.stage.rectOf(this.eid)?.angle || 0) * Math.PI / 180;
     const cos = Math.cos(ang), sin = Math.sin(ang);
     const sx = e.clientX, sy = e.clientY;
