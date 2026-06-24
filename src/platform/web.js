@@ -12,7 +12,7 @@ import {
   fsSupported, openDeckFile, pickSaveFile, writeHandle, ensureWritable,
 } from '../core/persistence.js';
 import { llmChat } from '../core/llm.js';
-import { exportPdf as printPdf } from '../core/export-pdf.js';
+import { exportPdf as printPdf, captureDeckToPdf as captureToPdf } from '../core/export-pdf.js';
 import { downloadText } from '../util/dom.js';
 
 export class WebPlatform {
@@ -89,7 +89,9 @@ export class WebPlatform {
   // ---------- export / present ----------
   exportHtml(html, name) { downloadText(name, html); return Promise.resolve(); }
 
-  exportPdf(deck) { return printPdf(deck); }
+  exportPdf(deck, opts) { return printPdf(deck, opts); }
+
+  capturePdf(deck, opts) { return captureToPdf(deck, opts); }
 
   present(html) {
     const blob = new Blob([html], { type: 'text/html' });

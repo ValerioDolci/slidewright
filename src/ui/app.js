@@ -175,6 +175,9 @@ export class App {
     on('new-deck', () => this._newDeck());
     on('export-html', () => this._exportHtml());
     on('export-pdf', () => this._exportPdf());
+    on('toggle-pdf-mode', (e) => this._togglePdfMode(e.currentTarget));
+    on('capture-pdf', () => this._capturePdf());
+    this._syncPdfModeBtn();
     on('undo', () => this._undo());
     on('redo', () => this._redo());
     on('add-text', () => this._addText());
@@ -936,8 +939,47 @@ export class App {
 
   async _exportPdf() {
     this.commitStage(null);
-    this._hint('Apertura stampa… scegli "Salva come PDF" e attiva "Grafica di sfondo".');
-    await this.platform.exportPdf(store.deck);
+    // Raster ON di default: PDF fedele su ogni device (immagini, niente trasparenze da comporre).
+    // Spegnibile (PDF vettoriale, testo selezionabile) dal toggle accanto al bottone.
+    const raster = this.platform.storage.get('ss-pdf-raster') !== 'off';
+    this._hint(raster
+      ? 'Preparo il PDF nitido (immagini)… poi scegli "Salva come PDF".'
+      : 'Apertura stampa… scegli "Salva come PDF" e attiva "Grafica di sfondo".');
+    await this.platform.exportPdf(store.deck, { raster });
+  }
+
+  async _capturePdf() {
+    this.commitStage(null);
+    if (typeof this.platform.capturePdf !== 'function') { this._hint('Cattura non disponibile in questo ambiente.'); return; }
+    const n = store.deck.slides.length;
+    this._hint('Consenti la cattura di "questa scheda": catturo le slide una a una…');
+    try {
+      await this.platform.capturePdf(store.deck, {
+        onProgress: (i, tot) => this._hint(`Cattura slide ${i}/${tot}…`),
+      });
+      this._hint('Cattura completata: scegli "Salva come PDF".');
+    } catch (e) {
+      this._hint(`Cattura annullata o non riuscita${e && e.message ? ': ' + e.message : ''}.`);
+    }
+  }
+
+  _pdfRasterOn() { return this.platform.storage.get('ss-pdf-raster') !== 'off'; }
+
+  _syncPdfModeBtn() {
+    const b = $('[data-action="toggle-pdf-mode"]'); if (!b) return;
+    const on = this._pdfRasterOn();
+    b.textContent = on ? '🖼' : '🅣';
+    b.setAttribute('aria-pressed', String(on));
+    b.title = on
+      ? 'PDF: nitido (immagini, fedele su ogni device). Clic → vettoriale (testo selezionabile).'
+      : 'PDF: vettoriale (testo selezionabile; trasparenze rese diversamente da alcuni viewer). Clic → nitido (immagini).';
+  }
+
+  _togglePdfMode(btn) {
+    const next = this._pdfRasterOn() ? 'off' : 'on';
+    this.platform.storage.set('ss-pdf-raster', next);
+    this._syncPdfModeBtn();
+    this._hint(next === 'off' ? 'PDF impostato su vettoriale (testo selezionabile).' : 'PDF impostato su nitido (immagini, fedele ovunque).');
   }
 
   _present() {

@@ -17,7 +17,7 @@
   <script type="module">
     import { parseDeck } from '/src/core/import.js';
     import { buildDeckHtml, cleanSlideHtml } from '/src/core/export-html.js';
-    import { buildPrintHtml } from '/src/core/export-pdf.js';
+    import { buildPrintHtml, buildRasterPrintHtml, rasterizeDeck } from '/src/core/export-pdf.js';
     import { externalize, inline, describeAssetsForLlm, collectAssetIds, pruneAssets } from '/src/core/assets.js';
     import { createDeck, cloneDeck, welcomeDeck } from '/src/core/model.js';
     import { rgbaParts, hexToRgba, Inspector } from '/src/ui/inspector.js';
@@ -118,6 +118,12 @@
       A(idDeck.slides[0].elId === 'slide-9' && !idDeck.slides[1].elId, 'id: elId catturato da #slide-9 (vuoto se assente)');
       A(parseDeck(buildDeckHtml(idDeck)).slides[0].elId === 'slide-9', 'id: export HTML preserva l\'id (round-trip)');
       A(buildPrintHtml(idDeck).includes('slide-9'), 'id: export PDF preserva l\'id della slide (nel srcdoc della pagina)');
+
+      // ---- export PDF rasterizzato (immagini → fedele su ogni device, niente trasparenze) ----
+      const rp = buildRasterPrintHtml(fdeck, ['data:image/png;base64,AAA', 'data:image/png;base64,BBB']);
+      A(/class="ss-raster"/.test(rp) && (rp.match(/ss-page/g) || []).length >= 2, 'raster: 1 pagina @page per immagine');
+      A(/@page\s*\{\s*size:\s*338\.667mm 190\.500mm/.test(rp) && !/ss-print-fr/.test(rp) && !/iframe/.test(rp), 'raster: pagine 16:9 di sole immagini (no iframe/trasparenze)');
+      A(typeof rasterizeDeck === 'function', 'raster: rasterizeDeck esportato (snapdom caricato dinamicamente a runtime)');
 
       // ---- libreria icone ----
       A(Object.keys(ICONS).length >= 12, `icone: raccolta ≥12 (${Object.keys(ICONS).length})`);

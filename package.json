@@ -6,7 +6,10 @@
   "description": "Editor visuale locale per deck di slide HTML — riordino, editing testo, editing grafico, export HTML+PDF.",
   "author": "Valerio Dolci",
   "license": "MIT",
-  "repository": { "type": "git", "url": "https://github.com/ValerioDolci/slidewright" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ValerioDolci/slidewright"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -15,6 +18,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@zumer/snapdom": "^2.12.9",
     "sortablejs": "^1.15.3"
   },
   "devDependencies": {

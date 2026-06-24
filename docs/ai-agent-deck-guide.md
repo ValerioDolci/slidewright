@@ -153,6 +153,33 @@ the box is exactly 720 px tall everywhere, the bottom stays put.
   another reason to stick to px/%.
 - A small HTML comment crediting Slidewright is added to exports (harmless, invisible).
 
+### 7.1 PDF: rasterized by default — and the transparency budget
+
+The PDF export has two modes (toggle next to the **Esporta PDF** button):
+
+- **Rasterized (default, 🖼)** — each slide is captured to a high-res image, then the images
+  are paginated. The PDF carries **no transparency groups**, so it looks **identical on every
+  device and viewer** (desktop Adobe/Chrome *and* mobile PDFium-based viewers). Trade-off:
+  text isn't selectable and the file is larger.
+- **Vector (🅣)** — live HTML printed by the browser; text stays selectable and the file is
+  small. Trade-off: decks with **heavy transparency** produce soft-masks / blend groups that
+  **different PDF engines compose differently** — desktop renders fine, but many **mobile
+  viewers wash slides to a white/blue haze or turn translucent boxes opaque**. Same file,
+  different look per device.
+
+**Transparency budget** (matters for the *vector* PDF and keeps the raster lighter/faster):
+
+- **Avoid `backdrop-filter` / `filter: blur()` on slide content.** It does not print at all
+  and is the #1 cause of the "white haze" page in vector PDFs. (It's fine on tiny decor.)
+- **Don't stack many large semi-transparent layers.** A full-bleed `rgba()` / gradient overlay
+  *over* another translucent layer *over* content is what generates the fragile soft-masks.
+  Prefer **solid** fills, or bake the blend into a **single** gradient.
+- **Keep large containers fully opaque** (`opacity:1`). Use `opacity < 1` only on small accents,
+  not on big wrappers that hold the slide's content.
+- Rule of thumb: **≤ ~3 overlapping translucent layers per slide**, and **no `backdrop-filter`**.
+  Within this budget both PDF modes are faithful everywhere; beyond it, keep the default
+  (rasterized) export on.
+
 ---
 
 ## 8. Minimal valid template (copy, then fill in)

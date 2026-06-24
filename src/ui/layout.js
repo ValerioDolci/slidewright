@@ -29,6 +29,10 @@ export const WORKSPACE_HTML = `
       <span class="topbar__sep"></span>
       <button class="btn" data-action="export-html" title="Esporta una copia HTML">Esporta HTML</button>
       <button class="btn" data-action="export-pdf" title="Esporta PDF (stesso formato slide)">Esporta PDF</button>
+      <button class="btn btn--icon" data-action="toggle-pdf-mode" data-i18n-skip aria-pressed="true"
+        title="Modalità PDF: nitido (immagini, fedele su ogni device). Clic per alternare con vettoriale (testo selezionabile).">🖼</button>
+      <button class="btn" data-action="capture-pdf" data-i18n-skip
+        title="Esporta PDF catturando lo schermo: foto fedele del render reale, identica su ogni viewer (richiede un consenso di cattura). Ideale quando i PDF si vedono male su mobile.">📷 Cattura PDF</button>
     </div>
 
     <div class="topbar__group" role="group" aria-label="Modifica">
