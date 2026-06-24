@@ -1,12 +1,57 @@
-<p align="center"><img src="assets/icon.png" alt="Slidewright" width="140" /></p>
+<p align="center">
+  <img src="assets/social-preview.png" alt="Slidewright — local visual editor for HTML slide decks" width="760" />
+</p>
 
-# Slidewright
+<h1 align="center">Slidewright</h1>
 
-**English** · [Italiano](README.it.md)
+<p align="center">
+  <b>Edit HTML slide decks like PowerPoint — 100% local. No cloud, no sign-up, no upload.</b>
+</p>
 
-A **local** visual editor for HTML slide decks — reorder, text editing,
-graphic editing (a mini-PowerPoint) and **HTML + PDF** export in the same 16:9
-format. No cloud, no external APIs, no Google Fonts.
+<p align="center">
+  <a href="https://valeriodolci.github.io/slidewright/"><b>▶ Try it live</b></a> ·
+  <a href="https://github.com/ValerioDolci/slidewright/releases/latest/download/slidewright.html"><b>⬇ Download (1 file)</b></a> ·
+  <a href="README.it.md">Italiano</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/ValerioDolci/slidewright/releases/latest"><img src="https://img.shields.io/github/v/release/ValerioDolci/slidewright?color=b45309&label=release" alt="latest release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-b45309" alt="MIT license" /></a>
+  <img src="https://img.shields.io/badge/runtime%20deps-0-b45309" alt="zero runtime dependencies" />
+  <img src="https://img.shields.io/badge/data-stays%20on%20your%20machine-b45309" alt="local-first" />
+</p>
+
+<!--
+  TODO Valerio: registra la GIF demo (10-15s) e salvala in assets/demo.gif, poi
+  scommenta il blocco qui sotto. Storyboard in docs/launch/gif-storyboard.md.
+<p align="center"><img src="assets/demo.gif" alt="Slidewright in action" width="760" /></p>
+-->
+
+---
+
+## Why Slidewright?
+
+You ask an AI to "make me a slide deck" and it hands you a single `.html` file.
+It looks great — until you need to fix a typo, move a box, or export a clean PDF.
+Your options today are: re-prompt the AI and hope, or hand-edit raw HTML.
+
+**Slidewright is the missing visual editor for those decks.** Open the `.html`,
+drag things around like in PowerPoint, type over the text, export a pristine
+HTML or a pixel-perfect 16:9 PDF. Everything runs in your browser, on your
+machine — the deck never leaves your laptop.
+
+- 🔒 **Local-first.** No server, no account, no telemetry, no Google Fonts. The file stays with you.
+- 🪶 **Zero runtime dependencies.** One self-contained HTML file (~140 KB). Double-click and go.
+- 🎯 **Real editing, not a viewer.** Move/resize/rotate, recolor, crop images to shapes, undo/redo.
+- 🖨 **Clean export.** Standalone navigable HTML + dependency-free PDF (1 slide = 1 page, true 16:9).
+- 🤝 **Two shells, one engine.** Runs as a web app *and* as a VS Code extension.
+
+## Try it in 30 seconds
+
+1. **[Open the live editor](https://valeriodolci.github.io/slidewright/)** (nothing is uploaded — it runs in your tab), **or**
+2. **[Download `slidewright.html`](https://github.com/ValerioDolci/slidewright/releases/latest/download/slidewright.html)** and double-click it — it runs straight from `file://`.
+
+Drag a `deck.html` onto the window (or hit **Open**) and start editing.
 
 ## Usage
 
@@ -45,13 +90,14 @@ code --install-extension slidewright-0.1.0.vsix
 |---|---|
 | **L1 — Reorder** | Sidebar thumbnails, drag & drop (SortableJS), duplicate / delete / new |
 | **L2 — Text** | Double-click an element → inline `contenteditable` |
-| **L3 — Graphics** | Click → selection with move/resize handles; properties panel (font, size, weight, colour, alignment, background, radius, opacity, padding, z-index); add text / rectangle / image; **undo/redo**; nudge with arrow keys |
+| **L3 — Graphics** | Click → selection with move/resize/rotate handles; properties panel (font, size, weight, colour, alignment, background, radius, opacity, padding, z-index); add text / shapes / icons / image (crop to shape); **undo/redo**; nudge with arrow keys |
 | **Open / Save** | Open an `.html` file and **save straight back to it** (File System Access API, Chromium) with autosave; ⌘S. Download fallback on Firefox/Safari |
-| **Clipboard** | ⌘C / ⌘V / ⌘D copy / paste / duplicate element |
+| **Clipboard** | ⌘C / ⌘V / ⌘D copy / paste / duplicate element; format painter |
 | **Theme** | Light/dark toggle (☾/☀), remembered; the canvas shows the deck with its own style |
-| **Export HTML** | Clean, standalone, navigable deck (arrows/click), re-openable from the editor and from Claude |
+| **Export HTML** | Clean, standalone, navigable deck (arrows/click), re-openable from the editor and from an AI |
 | **Export PDF** | Browser print with `@page` 16:9 (960×540pt) → 1 slide = 1 page, identical format |
 | **Import** | Drop a `deck.html` (or "Open"): parses `<style>` + `<section class="slide">` |
+| **AI chat (optional)** | Provider-neutral agent (OpenAI-compatible: Mistral / OpenRouter / Ollama / LM Studio…; Copilot in VS Code) that edits the deck via tool calls |
 
 ## Tests
 
