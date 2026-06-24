@@ -231,7 +231,9 @@ export async function captureDeck(deck, opts = {}) {
   Object.assign(overlay.style, {
     position: 'fixed', inset: '0', zIndex: '2147483647', background: '#000',
     display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-  });
+    cursor: 'none', // l'overlay copre tutta la scheda → con cursor:none il browser NON disegna
+  });               // il puntatore: la cattura DELLA SCHEDA non lo include (cursor:'never' su
+                    // Edge/Windows è inaffidabile; questo è il rimedio che funziona per tab capture).
   const stage = document.createElement('iframe');
   stage.setAttribute('aria-hidden', 'true');
   Object.assign(stage.style, {
@@ -247,21 +249,24 @@ export async function captureDeck(deck, opts = {}) {
   fitStage();
   overlay.appendChild(stage);
   document.body.appendChild(overlay);
+  // nascondi il cursore anche a livello documento durante la cattura (ripristino nel finally)
+  const prevCursor = document.documentElement.style.cursor;
+  document.documentElement.style.cursor = 'none';
 
   let stream;
   try {
-    // 1) Acquisisci lo stream PER PRIMO, finché il gesture del click "Cattura" è fresco:
-    //    requestFullscreen consumerebbe l'attivazione transitoria e farebbe fallire getDisplayMedia.
+    // Fullscreen + getDisplayMedia condividono il gesto del click "Cattura": chiamo
+    // requestFullscreen NON-awaited SUBITO prima di getDisplayMedia (nessuna pausa in mezzo) →
+    // l'attivazione transitoria copre entrambi. (Mettere getDisplayMedia per primo rendeva il
+    // fullscreen privo di attivazione → non scattava.) cursor:'never' è ridondante ma innocuo.
+    try { if (overlay.requestFullscreen) overlay.requestFullscreen().catch(() => {}); } catch (_) { /* noop */ }
     stream = await md.getDisplayMedia({
-      // cursor:'never' → il puntatore del mouse NON entra nello screenshot (escluso alla fonte).
       video: { displaySurface: 'browser', frameRate: 30, cursor: 'never' },
       audio: false,
       preferCurrentTab: true,      // Chromium: propone direttamente "questa scheda"
       selfBrowserSurface: 'include',
     });
-    // 2) Ora vai a schermo intero: il consenso appena dato fornisce una nuova attivazione.
-    try { if (overlay.requestFullscreen) await overlay.requestFullscreen(); } catch (_) { /* best effort */ }
-    await sleep(180);
+    await sleep(200);
     fitStage(); // ricalcola la scala sul viewport fullscreen → cattura più nitida
 
     const track = stream.getVideoTracks()[0];
@@ -332,6 +337,7 @@ export async function captureDeck(deck, opts = {}) {
   } finally {
     if (stream) stream.getTracks().forEach((t) => t.stop());
     try { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch (_) { /* noop */ }
+    document.documentElement.style.cursor = prevCursor;
     overlay.remove();
   }
 }
