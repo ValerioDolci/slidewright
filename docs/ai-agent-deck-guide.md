@@ -22,6 +22,19 @@ Slidewright treats every slide as a **fixed logical canvas of 1280×720 px (16:9
 So: *what you lay out in 1280×720 is exactly what the user sees and prints.* There is no
 responsive reflow — design for that single fixed box.
 
+**Resolution is flexible, but the aspect ratio is not.** 1280×720 is the recommended default
+(it equals the native PowerPoint 16:9 canvas at 96 dpi: 13.333″×7.5″) and the lightest grid.
+You may author at any **16:9** size — e.g. **1920×1080** — as long as you stay consistent: pick
+one canvas and lay out *every* slide on it. Slidewright auto-detects a fixed 16:9 deck and adopts
+its size on import. To make the size explicit and survive round-trips, declare it once in `<head>`:
+
+```html
+<meta name="slidewright:canvas" content="1920x1080">
+```
+
+Do **not** mix sizes between slides, and never use a non-16:9 canvas (4:3, A4, …) — it gets
+normalized to the default and your layout will shift.
+
 ---
 
 ## 2. File structure (required)
@@ -185,14 +198,96 @@ the box is exactly 720 px tall everywhere, the bottom stays put.
 
 ---
 
-## 9. Agent checklist before returning the file
+## 9. Design quality — make it look bespoke (non-negotiable)
+
+Conformance gets a deck to import and render correctly. **These rules make it look good.** A deck
+must feel hand-made for *this* topic, not template-generated. Commit to one bold aesthetic
+direction (editorial, brutalist, refined-minimal, retro-futuristic, …) and carry it across the deck.
+
+❌ **Never**
+- Inter, Roboto, Arial, Space Grotesk (and other generic "AI-deck" fonts).
+- Purple gradient on white.
+- The default 8px SaaS `border-radius`.
+- A generic, template-looking palette.
+
+✅ **Always**
+- A characterful **display font + a separate body font** (system stacks only — see §5). Good
+  system serifs: Charter, "Iowan Old Style", Palatino, Georgia. A monospace stack works well as a
+  technical accent.
+- One **dominant palette + a single sharp accent** (e.g. amber `#b45309` for data callouts).
+- **Visual depth**: subtle noise texture, gradient mesh, layered transparencies, dramatic shadows
+  — not flat solid fills.
+- **Spatial tension**: asymmetry, overlap, grid-breaking, generous negative space (or controlled
+  density). Avoid the dead-centered, evenly-padded template look.
+- Small radius (4px) or 0 for editorial; 12–16px only when the direction is playful/soft.
+
+(Motion: the export/Presentation runtime handles slide-to-slide transitions; honor
+`prefers-reduced-motion` if you add any CSS transition. Do **not** add entrance animations on the
+slide *content* — they don't survive PDF and break editor/PDF parity. Slides are static frames.)
+
+---
+
+## 10. Slide layout catalog (12 reusable patterns)
+
+Build slides from these patterns. All are pure positioned `px`/flex blocks on the fixed canvas —
+no responsive grid needed. Vary them; don't repeat the same one back-to-back.
+
+| # | Layout | Typical use |
+|---|--------|-------------|
+| 1 | Cover | Deck title |
+| 2 | Agenda / TOC | Section index |
+| 3 | Two columns | Comparison, text + image |
+| 4 | Stats grid | KPIs, key numbers |
+| 5 | Bento features | 3–6 features in an asymmetric grid |
+| 6 | A/B compare | Options, before/after |
+| 7 | Timeline | Roadmap, history |
+| 8 | Chart | Data viz — **author it as inline `<svg>`** (the tool preserves SVG but has no chart generator; never use an external chart lib or `<canvas>`+JS) |
+| 9 | Quote | One emphasized quotation |
+| 10 | Full-bleed image | Hero photo with overlaid text (the bleed is decorative; keep the *readable* text inside the canvas) |
+| 11 | List | Long structured bullets |
+| 12 | Closing / CTA | Call to action, contacts |
+
+---
+
+## 11. Design tokens & incremental edits
+
+- **Keep design tokens in one `:root` block** inside the single `<head><style>` (colors, fonts,
+  spacing as CSS custom properties), and reference them everywhere (`var(--accent)`). This gives the
+  "separate theme from content" benefit — you can restyle the whole deck by editing a handful of
+  variables — **without** an external `theme.css` (which would break the self-contained file).
+- **Editing one slide:** each `<section class="slide">` is independent. To change slide 4 only,
+  rewrite that one section (and, if needed, add `#slide-4`-scoped rules in the global style); leave
+  the other sections byte-for-byte untouched. Don't renumber or reflow the rest.
+
+---
+
+## 12. Anti-patterns imported from other slide tools (do NOT do these here)
+
+Other "slides with Claude" workflows assume a different model. These break Slidewright:
+
+- ❌ **External `theme.css` / `assets/` folder.** Everything is one self-contained `.html`: CSS
+  inline in `<head>`, images as `data:`/inline SVG. External files won't load from `file://`.
+- ❌ **Hand-written scaling/navigation `<script>`** (the `transform:scale` resizer, arrow-key
+  handler, slide show/hide logic). Slidewright **injects its own trusted runtime on export** and
+  strips author scripts on import — so don't write it, and don't rely on it surviving. Just emit
+  plain `<section class="slide">`; scaling + arrow/button nav come for free.
+- ❌ **`display:none` to hide inactive slides.** Don't manage visibility at all — the tool/export
+  does it (and `display:none` interferes with overflow fitting). No `active` class either.
+- ❌ **PPTX pipelines** (`html2pptx`, LibreOffice, `python-pptx`, `extract-pptx.py`), **Vercel
+  deploy**, **Playwright PDF**. Out of scope: Slidewright is 100% local, HTML in → HTML + PDF out
+  (PDF via the browser's own print engine). The PDF button replaces all of that.
+
+---
+
+## 13. Agent checklist before returning the file
 
 - [ ] One `.html` file, valid `<!DOCTYPE html>`, all CSS in one `<head><style>`.
-- [ ] Every slide is `<section class="slide">`. No manual `active`.
+- [ ] Every slide is `<section class="slide">`. No manual `active`, no show/hide logic.
 - [ ] **Zero** `vh`/`vw`/`vmin`/`vmax` anywhere. Sizes in `px`/`%`.
-- [ ] Every slide's content fits within **1280×720** (nothing meant to overflow 720 px tall).
-- [ ] No `<script>`. No external fonts/`@import`. No external asset URLs (images inlined as
-      `data:`/SVG).
+- [ ] One consistent **16:9** canvas (1280×720 default, or declared via `<meta name="slidewright:canvas">`); same size on every slide.
+- [ ] Every slide's content fits within the canvas height (nothing meant to overflow).
+- [ ] No `<script>` (no hand-written scaler/nav). No external fonts/`@import`. No external asset URLs or `theme.css` (images inlined as `data:`/SVG; tokens in `:root`).
 - [ ] Bottom/edge elements pinned with flex or `position:absolute … px` (not viewport units).
-- [ ] System-font stack only.
+- [ ] System-font stack only — characterful display + body font; one dominant palette + one sharp accent; no Inter/Roboto/Arial, no purple-on-white, no 8px radius.
+- [ ] Charts authored as inline `<svg>` (no chart libs / `<canvas>`).
 - [ ] Text lives in real text elements (editable), not inside images.
