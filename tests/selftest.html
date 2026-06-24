@@ -76,8 +76,11 @@
       // ---- PDF: ogni pagina ha .active (deck con .slide{display:none}/.active non esce vuoto) ----
       const dnDeck = parseDeck('<html><head><style>.slide{display:none}.slide.active{display:flex}</style></head><body><div class="deck">' +
         '<section class="slide"><h1>A</h1></section><section class="slide"><h1>B</h1></section></div></body></html>');
-      const printHtml = buildPrintHtml(dnDeck, { pageBackground: '' });
-      A((printHtml.match(/class="slide active/g) || []).length === 2, 'pdf: ogni pagina ha la classe active (slide display:none non escono vuote)');
+      const printHtml = buildPrintHtml(dnDeck);
+      // [iframe-per-page] ogni slide = un iframe-pagina (srcdoc) con la slide attiva dentro →
+      // i deck display:none/.active non escono vuoti (ogni iframe rende UNA slide, attiva).
+      A((printHtml.match(/class="ss-print-fr"/g) || []).length === 2 && printHtml.includes('slide active'),
+        'pdf: un iframe-pagina per slide, ciascuna con la slide attiva (no pagine vuote)');
 
       // ---- [ARCH] tela fissa: niente adattamento del contenuto in export (no fitScale) ----
       // Anche se una slide porta un (vecchio) fitScale nel modello, l'export NON applica
@@ -108,13 +111,13 @@
 
       // ---- [F4] l'export include il fit overflow (scala-per-starci, coerente con l'editor) ----
       A(bigHtml.includes('function fit(') && /maxB>H\+2\|\|maxR>W\+2/.test(bigHtml), 'F4: export HTML include il fit overflow runtime');
-      A(buildPrintHtml(fdeck, { pageBackground: '' }).includes('querySelectorAll(\'.ss-page > section\')'), 'F4: export PDF include il fit overflow runtime');
+      A(buildPrintHtml(fdeck).includes('ss-print-fr') && buildPrintHtml(fdeck).includes('querySelectorAll(\'.ss-deck > .slide\')'), 'F4: PDF = iframe-per-pagina col fit overflow della presentazione');
 
       // ---- id slide preservato (deck che stilano per #slide-N) ----
       const idDeck = parseDeck('<html><body><div class="deck"><section class="slide" id="slide-9"><h1>A</h1></section><section class="slide"><h1>B</h1></section></div></body></html>');
       A(idDeck.slides[0].elId === 'slide-9' && !idDeck.slides[1].elId, 'id: elId catturato da #slide-9 (vuoto se assente)');
       A(parseDeck(buildDeckHtml(idDeck)).slides[0].elId === 'slide-9', 'id: export HTML preserva l\'id (round-trip)');
-      A(buildPrintHtml(idDeck, { pageBackground: '' }).includes('id="slide-9"'), 'id: export PDF preserva l\'id');
+      A(buildPrintHtml(idDeck).includes('slide-9'), 'id: export PDF preserva l\'id della slide (nel srcdoc della pagina)');
 
       // ---- libreria icone ----
       A(Object.keys(ICONS).length >= 12, `icone: raccolta ≥12 (${Object.keys(ICONS).length})`);

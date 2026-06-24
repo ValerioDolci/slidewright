@@ -138,7 +138,7 @@ const shellJs = (cw, ch) => `(function(){
 })();`;
 
 /** Documento INTERNO all'iframe: il deck vero (styleCss + sezioni + nav). */
-function buildInnerDeckDoc(deck) {
+export function buildInnerDeckDoc(deck) {
   const lang = deck.meta?.lang || 'it';
   const title = deck.meta?.title || 'Deck';
   const cw = deck.canvas?.w || CANVAS.w, ch = deck.canvas?.h || CANVAS.h; // [F1] canvas per-deck
@@ -225,6 +225,6 @@ function escapeAttr(s) {
   return escapeHtml(s).replace(/"/g, '&quot;');
 }
 /** Escape per l'attributo `srcdoc`: SOLO & e " (i < > devono restare HTML letterale). */
-function escapeSrcdoc(s) {
+export function escapeSrcdoc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }

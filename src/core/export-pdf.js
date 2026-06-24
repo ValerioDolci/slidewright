@@ -16,67 +16,53 @@
  * Suggerire all'utente di attivare "Grafica di sfondo" nel dialogo di stampa.
  */
 
-import { cleanSlideHtml, CREDIT } from './export-html.js';
+import { cleanSlideHtml, CREDIT, buildInnerDeckDoc, escapeSrcdoc } from './export-html.js';
 import { CANVAS } from './model.js';
 
 // [F1] canvas PER-DECK: la pagina @page è in mm = px/96·25.4 (1:1 col canvas → identico,
 // indipendente dalla misura 16:9; per 1280×720 = 338.667×190.5mm come prima).
 const mm = (px) => (px * 25.4 / 96).toFixed(3);
-const printCssBase = (cw, ch) => `
+
+// Shell ESTERNA del documento di stampa: una pagina @page per slide, ognuna che contiene un
+// iframe a misura-canvas (vedi buildPrintHtml). print-color-adjust:exact forza la stampa di
+// sfondi/gradienti (Chrome altrimenti li scarta → box semitrasparenti su bianco).
+const printShellCss = (cw, ch) => `
 @page { size: ${mm(cw)}mm ${mm(ch)}mm; margin: 0; }
-/* Forza la stampa di sfondi/gradienti su OGNI elemento: senza questo Chrome NON stampa i
-   background-image (es. la radial gradient di .slide-body) e lo sfondo scuro sparisce →
-   i box semitrasparenti finiscono su bianco e appaiono pieni. print-color-adjust è
-   ereditato, ma alcuni deck lo resettano sui figli: lo mettiamo esplicito su tutto. */
 *,*::before,*::after{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
 html,body{margin:0;padding:0;}
 .ss-page{position:relative;width:${cw}px;height:${ch}px;overflow:hidden;
   page-break-after:always;break-after:page;}
 .ss-page:last-child{page-break-after:auto;break-after:auto;}
-/* Forza ogni slide visibile e ferma nella sua pagina (override della logica .active) */
-.ss-page > .slide{position:absolute !important;inset:0 !important;
-  opacity:1 !important;visibility:visible !important;transform:none !important;
-  transition:none !important;pointer-events:auto !important;}`;
+.ss-print-fr{width:${cw}px;height:${ch}px;border:0;display:block;}`;
 
-export function buildPrintHtml(deck, { pageBackground = '' } = {}) {
+export function buildPrintHtml(deck) {
   if ((deck.mode || 'deck') === 'doc') return buildDocPrintHtml(deck);
   const cw = deck.canvas?.w || CANVAS.w, ch = deck.canvas?.h || CANVAS.h; // [F1] canvas per-deck
+
+  // [PDF = editor, per costruzione] Ogni pagina è un iframe a misura-canvas che contiene UNA
+  // sola slide, costruito con lo STESSO motore della presentazione (buildInnerDeckDoc: innerCss
+  // forza la slide al canvas + innerJs fa l'auto-fit F4). L'iframe crea il proprio viewport
+  // ${cw}×${ch} → le `@media`/`vw`/`vh` del deck si risolvono come in editor/presentazione, NON
+  // sul viewport di stampa (che è stretto → faceva collassare i layout responsive e scalare le
+  // slide in modo diverso = "slide di dimensioni diverse" nel PDF). @page dà la carta = canvas.
+  // print-color-adjust:exact va messo DENTRO l'iframe (documento a sé): forza la stampa di
+  // sfondi/gradienti dei box anche senza spuntare "Grafica di sfondo" nel dialogo. La regola
+  // sulla shell esterna NON raggiunge il contenuto dell'iframe → senza questa i box perdono il
+  // riempimento e appaiono bianchi nel PDF.
+  const COLOR_EXACT = '<style>*,*::before,*::after{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}</style>';
   const pages = deck.slides
     .map((s) => {
-      // 'active' su OGNI pagina: i deck che mostrano/nascondono con .slide{display:none}
-      // + .slide.active{display:flex} altrimenti stamperebbero pagine vuote (qui ogni
-      // pagina è una slide a sé, tutte vanno rese visibili). Innocuo per i deck a opacità.
-      const cls = ['slide', 'active', ...(s.classes || [])].filter(Boolean).join(' ');
-      const id = s.elId ? ` id="${s.elId}"` : ''; // preserva l'id (CSS #slide-N del deck)
-      return `<div class="ss-page"><section${id} class="${cls}">${cleanSlideHtml(s.html)}</section></div>`;
+      const inner = buildInnerDeckDoc({ ...deck, slides: [s] }).replace('</head>', `${COLOR_EXACT}</head>`);
+      const srcdoc = escapeSrcdoc(inner);
+      return `<div class="ss-page"><iframe class="ss-print-fr" srcdoc="${srcdoc}"></iframe></div>`;
     })
     .join('\n');
 
-  // Quando abbiamo lo sfondo del body: lo applichiamo a ogni pagina e azzeriamo
-  // quello del body (altrimenti si "stira" su tutto il documento e scurisce).
-  const bgCss = pageBackground
-    ? `html,body{background:none !important;}\n.ss-page{${pageBackground}}`
-    : '';
-
   return `<!DOCTYPE html>${CREDIT}<html lang="${deck.meta?.lang || 'it'}"><head>
 <meta charset="UTF-8" /><title>${(deck.meta?.title || 'Deck')} — PDF</title>
-<style>${deck.styleCss || ''}</style>
-<style>${printCssBase(cw, ch)}\n${bgCss}</style>
-</head><body>${pages}\n<script>${overflowFitJs(cw, ch)}</script></body></html>`;
+<style>${printShellCss(cw, ch)}</style>
+</head><body>${pages}</body></html>`;
 }
-
-// [F4] runtime di stampa: scala le pagine il cui contenuto in-flusso sfora il canvas
-// (identico a editor/presentazione). Gira al load dell'iframe di stampa, PRIMA di print().
-// È il nostro runtime fidato (il contenuto del deck resta sanitizzato a parte).
-const overflowFitJs = (cw, ch) => `(function(){var W=${cw},H=${ch};` +
-  `function fit(sec){sec.style.removeProperty('transform');var base=sec.getBoundingClientRect(),maxB=0,maxR=0;` +
-  `(function walk(n){var cc=n.children;for(var k=0;k<cc.length;k++){var c=cc[k],cs=getComputedStyle(c);` +
-  `if(cs.position==='absolute'||cs.position==='fixed'||cs.display==='none')continue;` +
-  `var r=c.getBoundingClientRect();if(r.width||r.height){maxB=Math.max(maxB,r.bottom-base.top);maxR=Math.max(maxR,r.right-base.left);}walk(c);}})(sec);` +
-  `if(maxB>H+2||maxR>W+2){var s=Math.min(W/Math.max(maxR,1),H/Math.max(maxB,1),1);` +
-  `if(s<0.999){sec.style.setProperty('transform-origin','top left','important');sec.style.setProperty('transform','scale('+s+')','important');}}}` +
-  `function all(){[].slice.call(document.querySelectorAll('.ss-page > section')).forEach(fit);}` +
-  `all();window.addEventListener('load',all);})();`;
 
 /** Stampa in modalità documento: pagine A4 con impaginazione naturale del browser. */
 function buildDocPrintHtml(deck) {
@@ -135,16 +121,19 @@ export function computeBodyBackground(styleCss, canvas = CANVAS) {
  * Ritorna una Promise che si risolve dopo l'avvio della stampa.
  */
 export async function exportPdf(deck) {
-  const isDoc = (deck.mode || 'deck') === 'doc';
-  const pageBackground = isDoc ? '' : await computeBodyBackground(deck.styleCss, deck.canvas || CANVAS);
-  const html = buildPrintHtml(deck, { pageBackground });
+  const html = buildPrintHtml(deck);
+  // Niente più computeBodyBackground per i deck: ogni pagina è un iframe che porta dentro lo
+  // sfondo del body del deck (render corretto per-slide), quindi non c'è lo "stiramento" del
+  // fondale su un documento alto N×canvas che la replica per-pagina compensava.
+
+  const cw = deck.canvas?.w || CANVAS.w, ch = deck.canvas?.h || CANVAS.h;
 
   return new Promise((resolve) => {
     const iframe = document.createElement('iframe');
     iframe.setAttribute('aria-hidden', 'true');
     Object.assign(iframe.style, {
-      position: 'fixed', right: '0', bottom: '0',
-      width: '0', height: '0', border: '0', visibility: 'hidden',
+      position: 'fixed', left: '-99999px', top: '0',
+      width: `${cw}px`, height: `${ch}px`, border: '0', visibility: 'hidden',
     });
     document.body.append(iframe);
 
@@ -162,14 +151,27 @@ export async function exportPdf(deck) {
     const cleanup = () => { if (cleaned) return; cleaned = true; iframe.remove(); resolve(); };
     const fire = () => {
       const w = iframe.contentWindow;
-      w.addEventListener('afterprint', () => setTimeout(cleanup, 300), { once: true });
-      setTimeout(cleanup, 120000); // fallback: alcuni browser non emettono afterprint
-      try {
-        w.focus();
-        w.print();
-      } catch (_) {
-        setTimeout(cleanup, 800);
-      }
+      // Aspetta che TUTTI gli iframe-pagina annidati (srcdoc) abbiano caricato il loro
+      // contenuto PRIMA di stampare: print() prematura stamperebbe pagine vuote. Gli srcdoc
+      // sono inline (niente rete) → caricano subito, ma attendiamo i load per sicurezza.
+      const inner = [].slice.call(iframe.contentDocument.querySelectorAll('iframe.ss-print-fr'));
+      Promise.all(inner.map((fr) => new Promise((res) => {
+        try { if (fr.contentDocument && fr.contentDocument.readyState === 'complete') return res(); } catch (_) { /* same-origin srcdoc */ }
+        fr.addEventListener('load', () => res(), { once: true });
+        setTimeout(res, 4000); // fallback per-iframe
+      }))).then(() => {
+        // due rAF: lascia assestare layout + auto-fit dentro gli iframe prima dello snapshot
+        w.requestAnimationFrame(() => w.requestAnimationFrame(() => {
+          w.addEventListener('afterprint', () => setTimeout(cleanup, 300), { once: true });
+          setTimeout(cleanup, 120000); // fallback: alcuni browser non emettono afterprint
+          try {
+            w.focus();
+            w.print();
+          } catch (_) {
+            setTimeout(cleanup, 800);
+          }
+        }));
+      });
     };
     if (iframe.contentWindow.document.readyState === 'complete') setTimeout(fire, 150);
     else iframe.addEventListener('load', () => setTimeout(fire, 150), { once: true });
