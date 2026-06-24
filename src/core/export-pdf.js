@@ -255,11 +255,6 @@ export async function captureDeck(deck, opts = {}) {
 
   let stream;
   try {
-    // Fullscreen + getDisplayMedia condividono il gesto del click "Cattura": chiamo
-    // requestFullscreen NON-awaited SUBITO prima di getDisplayMedia (nessuna pausa in mezzo) →
-    // l'attivazione transitoria copre entrambi. (Mettere getDisplayMedia per primo rendeva il
-    // fullscreen privo di attivazione → non scattava.) cursor:'never' è ridondante ma innocuo.
-    try { if (overlay.requestFullscreen) overlay.requestFullscreen().catch(() => {}); } catch (_) { /* noop */ }
     stream = await md.getDisplayMedia({
       video: { displaySurface: 'browser', frameRate: 30, cursor: 'never' },
       audio: false,
@@ -267,14 +262,19 @@ export async function captureDeck(deck, opts = {}) {
       selfBrowserSurface: 'include',
     });
     await sleep(200);
-    fitStage(); // ricalcola la scala sul viewport fullscreen → cattura più nitida
 
     const track = stream.getVideoTracks()[0];
 
-    // Region Capture: cattura SOLO lo stage (niente bande/ritaglio). Best-effort.
-    let cropped = false;
+    // Limita la cattura al solo stage. PRIORITÀ alla Element Capture (restrictTo): cattura il
+    // CONTENUTO dell'elemento escludendo gli overlay sopra → niente cursore di sistema (che la
+    // Region Capture/cropTo includerebbe). Fallback: Region Capture, poi ritaglio manuale.
+    let cropped = false; // true se il frame è già il solo stage (restrictTo o cropTo)
     try {
-      if (window.CropTarget && CropTarget.fromElement && track.cropTo) {
+      if (window.RestrictionTarget && RestrictionTarget.fromElement && track.restrictTo) {
+        const rt = await RestrictionTarget.fromElement(stage);
+        await track.restrictTo(rt);
+        cropped = true;
+      } else if (window.CropTarget && CropTarget.fromElement && track.cropTo) {
         const ct = await CropTarget.fromElement(stage);
         await track.cropTo(ct);
         cropped = true;
@@ -336,7 +336,6 @@ export async function captureDeck(deck, opts = {}) {
     return images;
   } finally {
     if (stream) stream.getTracks().forEach((t) => t.stop());
-    try { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch (_) { /* noop */ }
     document.documentElement.style.cursor = prevCursor;
     overlay.remove();
   }

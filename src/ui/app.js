@@ -951,8 +951,7 @@ export class App {
   async _capturePdf() {
     this.commitStage(null);
     if (typeof this.platform.capturePdf !== 'function') { this._hint('Cattura non disponibile in questo ambiente.'); return; }
-    const n = store.deck.slides.length;
-    this._hint('Consenti la cattura di "questa scheda": catturo le slide una a una…');
+    this._hint('Suggerimento: F11 (schermo intero) = cattura più nitida. Consenti "questa scheda" nel popup…');
     try {
       await this.platform.capturePdf(store.deck, {
         onProgress: (i, tot) => this._hint(`Cattura slide ${i}/${tot}…`),
