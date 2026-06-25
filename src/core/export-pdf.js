@@ -273,7 +273,7 @@ export async function captureDeck(deck, opts = {}) {
   const prevCursor = document.documentElement.style.cursor;
   document.documentElement.style.cursor = 'none';
 
-  let stream;
+  let stream, video;
   try {
     stream = await md.getDisplayMedia({
       video: { displaySurface: 'browser', frameRate: 30, cursor: 'never' },
@@ -308,17 +308,21 @@ export async function captureDeck(deck, opts = {}) {
       } catch (_) { cropped = false; }
     }
 
-    // Sorgente video per i frame.
-    const video = document.createElement('video');
+    // Sorgente video. Va AGGIUNTA al DOM e bisogna attendere il PRIMO frame: senza, la cattura
+    // "non parte da sola" finché la scheda non riceve un'interazione. Niente ImageCapture.grabFrame
+    // (può bloccarsi): si disegna direttamente il <video> sul canvas (più affidabile).
+    video = document.createElement('video');
     video.muted = true; video.playsInline = true; video.srcObject = stream;
+    video.style.cssText = 'position:fixed;left:-99999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
+    document.body.appendChild(video);
+    try { window.focus(); } catch (_) { /* noop */ }
     await video.play().catch(() => {});
-    await sleep(250); // assestamento pipeline di cattura
-
-    const ic = ('ImageCapture' in window) ? new ImageCapture(track) : null;
-    const grab = async () => {
-      if (ic && ic.grabFrame) { try { return await ic.grabFrame(); } catch (_) { /* fallback */ } }
-      return await createImageBitmap(video);
-    };
+    await new Promise((res) => {
+      let done = false; const go = () => { if (done) return; done = true; res(); };
+      if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(() => go());
+      else video.addEventListener('playing', () => setTimeout(go, 150), { once: true });
+      setTimeout(go, 3000); // fallback
+    });
 
     const images = [];
     const n = deck.slides.length;
@@ -340,12 +344,12 @@ export async function captureDeck(deck, opts = {}) {
       // "throttled"/in background e i rAF non scattano (loop bloccato). I timer sì.
       await sleep(320); // assestamento layout + arrivo del frame nuovo nello stream
 
-      const bmp = await grab();
-      // Mappatura derivata dalla dimensione REALE del frame (robusta a dpr / scaling interno
-      // del track): NON usare devicePixelRatio, che non corrisponde alla dimensione del frame.
-      let sx = 0, sy = 0, sw = bmp.width, sh = bmp.height;
+      // Disegna il frame CORRENTE del <video> (lo stream è live; dopo render+sleep è aggiornato).
+      // Mappatura derivata dalla dimensione REALE del frame (videoWidth/Height), NON dal dpr.
+      const vw = video.videoWidth || 1, vh = video.videoHeight || 1;
+      let sx = 0, sy = 0, sw = vw, sh = vh;
       if (!cropped) {
-        const kx = bmp.width / window.innerWidth, ky = bmp.height / window.innerHeight;
+        const kx = vw / window.innerWidth, ky = vh / window.innerHeight;
         const r = wrapper.getBoundingClientRect();
         sx = Math.max(0, Math.round(r.left * kx));
         sy = Math.max(0, Math.round(r.top * ky));
@@ -356,8 +360,7 @@ export async function captureDeck(deck, opts = {}) {
       const outW = Math.max(1, sw), outH = Math.max(1, Math.round(outW * ch / cw));
       const canvas = document.createElement('canvas');
       canvas.width = outW; canvas.height = outH;
-      canvas.getContext('2d').drawImage(bmp, sx, sy, sw, sh, 0, 0, outW, outH);
-      if (bmp.close) bmp.close();
+      canvas.getContext('2d').drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
 
       // Auto-fallback: se l'Element Capture (restrictTo) non attraversa l'iframe, la 1ª slide
       // esce VUOTA (uniforme). In quel caso annullo restrictTo, passo a Region Capture (cropTo)
@@ -382,6 +385,7 @@ export async function captureDeck(deck, opts = {}) {
     return images;
   } finally {
     if (stream) stream.getTracks().forEach((t) => t.stop());
+    if (video) { try { video.pause(); video.srcObject = null; video.remove(); } catch (_) { /* noop */ } }
     document.documentElement.style.cursor = prevCursor;
     overlay.remove();
   }
