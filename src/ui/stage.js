@@ -10,6 +10,7 @@
 import { CANVAS } from '../core/model.js';
 import { EDITOR_ATTR, uid } from '../util/id.js';
 import { inline, externalize } from '../core/assets.js';
+import { el } from '../util/dom.js';
 
 // CSS iniettato SOLO nell'iframe dell'editor (mai esportato).
 // NB: la root della slide è marcata con la classe `.ss-root` (NON con un id fisso):
@@ -58,6 +59,8 @@ export class Stage {
     this.canvasW = CANVAS.w;     // [F1] dimensione canvas PER-DECK (default = canonico 1280×720)
     this.canvasH = CANVAS.h;
     this.onSelect = () => {};
+    this.onToggleSelect = () => {};  // ⌥-click su un elemento → aggiungi/togli dalla selezione
+    this.onMultiSelect = () => {};   // marquee (⌥-trascina) → insieme di eid intersecati
     this.onTextCommit = () => {};
     this.onBackground = () => {};
     this.onOverflow = () => {};
@@ -197,6 +200,7 @@ export class Stage {
         if (t) cb(t); // click sul vuoto → annulla soltanto
         return;
       }
+      if (this._suppressClick) { this._suppressClick = false; return; } // segue un marquee
       const a = e.target.closest('a');
       if (a) e.preventDefault(); // niente navigazione interna al deck
       // click dentro al testo in editing → lascia muovere il caret, non riselezionare
@@ -204,7 +208,22 @@ export class Stage {
         const ed = this.getElement(this._editingEid);
         if (ed && ed.contains(e.target)) return;
       }
-      this.pickAt(e.clientX, e.clientY, e.altKey || e.metaKey);
+      // ⇧-click su un elemento = aggiungi/togli dalla selezione (multi, come Keynote/PPT).
+      // ⌘-click = "seleziona l'elemento sotto" (click-through). Click = il più in alto.
+      if (e.shiftKey) {
+        const el = e.target.closest(`[${EDITOR_ATTR}]`);
+        if (el && !el.classList.contains('ss-root')) { this.onToggleSelect(el.getAttribute(EDITOR_ATTR)); return; }
+      }
+      this.pickAt(e.clientX, e.clientY, e.metaKey);
+    });
+
+    // ⇧-trascina = marquee (rubber-band) per selezionare più box. Senza Shift il
+    // pointerdown resta libero (testo/selezione nativa, gesti esistenti).
+    doc.addEventListener('pointerdown', (e) => {
+      if (this._picking || this._editingEid || this.viewLocked) return;
+      if (!e.shiftKey || e.button !== 0) return;
+      e.preventDefault(); // niente selezione-testo nativa mentre si traccia il riquadro
+      this._startMarquee(e);
     });
 
     // Doppio click: editing testo inline.
@@ -315,6 +334,74 @@ export class Stage {
     if (!root) return [];
     return [...root.querySelectorAll(`[${EDITOR_ATTR}]`)]
       .filter((n) => !n.classList.contains('ss-root'))
+      .map((n) => n.getAttribute(EDITOR_ATTR));
+  }
+
+  /** Marquee (rubber-band): traccia un riquadro nell'overlay (spazio logico) e a fine
+   *  drag seleziona gli elementi RACCHIUSI. Le coord. dell'evento nell'iframe sono già
+   *  logiche; il documentElement cattura il pointer per ricevere i move anche fuori. */
+  _startMarquee(e) {
+    const doc = this.doc;
+    const sx = e.clientX, sy = e.clientY;
+    let active = false, rectEl = null;
+    try { doc.documentElement.setPointerCapture(e.pointerId); } catch (_) { /* headless */ }
+    const cleanup = () => {
+      doc.removeEventListener('pointermove', move);
+      doc.removeEventListener('pointerup', up);
+      try { doc.documentElement.releasePointerCapture(e.pointerId); } catch (_) { /* noop */ }
+      if (rectEl) rectEl.remove();
+      if (doc.body) doc.body.style.userSelect = '';
+    };
+    const geom = (ev) => {
+      const x = Math.min(sx, ev.clientX), y = Math.min(sy, ev.clientY);
+      const w = Math.abs(ev.clientX - sx), h = Math.abs(ev.clientY - sy);
+      return { x, y, w, h };
+    };
+    const move = (ev) => {
+      if (!active) {
+        if (Math.abs(ev.clientX - sx) < 4 && Math.abs(ev.clientY - sy) < 4) return;
+        active = true;
+        if (doc.body) doc.body.style.userSelect = 'none';
+        rectEl = el('div', { class: 'marquee' });
+        this.overlay.append(rectEl);
+      }
+      const g = geom(ev);
+      rectEl.style.left = `${g.x}px`; rectEl.style.top = `${g.y}px`;
+      rectEl.style.width = `${g.w}px`; rectEl.style.height = `${g.h}px`;
+    };
+    const up = (ev) => {
+      cleanup();
+      if (active) {
+        // il click che (forse) segue NON deve deselezionare; se non arriva, il
+        // timeout libera il flag così il click successivo resta valido.
+        this._suppressClick = true;
+        setTimeout(() => { this._suppressClick = false; }, 0);
+        this.onMultiSelect(this.elementsInRect(geom(ev)));
+      }
+    };
+    doc.addEventListener('pointermove', move);
+    doc.addEventListener('pointerup', up);
+  }
+
+  /** eid degli elementi editabili RACCHIUSI nel riquadro logico {x,y,w,h}, scartando
+   *  quelli il cui antenato è già nel set (si tiene il box più esterno racchiuso →
+   *  niente doppio-spostamento antenato+discendente). */
+  elementsInRect(rect) {
+    const root = this.slideEl;
+    if (!root || rect.w < 3 || rect.h < 3) return [];
+    const rx2 = rect.x + rect.w, ry2 = rect.y + rect.h;
+    const base = root.getBoundingClientRect();
+    const hits = [];
+    root.querySelectorAll(`[${EDITOR_ATTR}]`).forEach((n) => {
+      if (n.classList.contains('ss-root') || n.hasAttribute('data-ss-spacer')) return;
+      const r = n.getBoundingClientRect();
+      const x = r.left - base.left, y = r.top - base.top; // logico (root a 0,0)
+      if (x >= rect.x && y >= rect.y && x + r.width <= rx2 && y + r.height <= ry2 && r.width && r.height) {
+        hits.push(n);
+      }
+    });
+    return hits
+      .filter((n) => !hits.some((m) => m !== n && m.contains(n)))
       .map((n) => n.getAttribute(EDITOR_ATTR));
   }
 

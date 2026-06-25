@@ -18,8 +18,16 @@ export class Sidebar {
     this.onDelete = () => {};
     this._sortable = Sortable.create(this.list, {
       animation: 150,
-      handle: '.thumb__grip',
+      // Tutta la miniatura è trascinabile (prima solo la minuscola maniglia ⋮⋮ →
+      // poco scopribile, Valerio non riusciva a riordinare). I bottoni azione
+      // (duplica/elimina) NON avviano il drag e restano cliccabili.
+      draggable: '.thumb',
+      filter: '.thumb__act',
+      preventOnFilter: false,
       ghostClass: 'thumb--ghost',
+      // soglia di movimento prima di iniziare il drag: un click fermo resta un click
+      // (selezione slide), così trascinare e selezionare non confliggono.
+      fallbackTolerance: 4,
       onEnd: (e) => {
         if (e.oldIndex !== e.newIndex) this.onReorder(e.oldIndex, e.newIndex);
       },

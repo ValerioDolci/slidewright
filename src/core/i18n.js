@@ -112,9 +112,14 @@ const EN = {
   'click di nuovo': 'click again',
   '→ scrivi nel testo': '→ type in the text',
   '⌥-click': '⌥-click',
+  '⌘-click': '⌘-click',
+  '⇧-click': '⇧-click',
   "→ seleziona l'elemento": '→ select the element',
   'sotto': 'below',
   'a quelli sovrapposti': 'when overlapping',
+  '→ aggiungi/togli dalla selezione': '→ add/remove from the selection',
+  '⇧-trascina': '⇧-drag',
+  '→ riquadro: seleziona più box e spostali insieme': '→ marquee: select multiple boxes and move them together',
   'Crocetta ✥': '✥ handle',
   'sopra il box → sposta': 'above the box → move',
   'snap · Alt = libero': 'snap · Alt = free',
@@ -213,13 +218,25 @@ const EN = {
   "Non puoi eliminare l'ultima slide.": "You can't delete the last slide.",
   'Nuovo deck. ⌘S per salvarlo su un file.': 'New deck. ⌘S to save it to a file.',
   'Nuovo deck creato.': 'New deck created.',
+  'Per aprire un deck, trascina un file .html.': 'To open a deck, drag a .html file.',
+  '{n} elementi selezionati — trascina per spostarli insieme.': '{n} elements selected — drag to move them together.',
   'Elemento copiato — ⌘V per incollare.': 'Element copied — ⌘V to paste.',
-  'Altri elementi sovrapposti qui: ⌥-click o Tab per raggiungere quelli sotto.':
-    'Overlapping elements here: ⌥-click or Tab to reach the ones below.',
+  'Altri elementi sovrapposti qui: ⌘-click o Tab per raggiungere quelli sotto.':
+    'Overlapping elements here: ⌘-click or Tab to reach the ones below.',
   'HTML esportato (copia separata).': 'HTML exported (separate copy).',
   'Apertura stampa… scegli "Salva come PDF" e attiva "Grafica di sfondo".':
     'Opening print… choose "Save as PDF" and enable "Background graphics".',
   'Hai modifiche non salvate. Continuare e perderle?': 'You have unsaved changes. Continue and lose them?',
+  // ---- app: hint dinamici (interpolati via tf) ----
+  'Aperto "{title}" — {n} slide{where}.{warn}': 'Opened "{title}" — {n} slides{where}.{warn}',
+  'le modifiche si salveranno su questo file': 'changes will be saved to this file',
+  'Errore apertura: {msg}': 'Open error: {msg}',
+  'Deck rilevato a {w}×{h} (16:9): adottato come formato.': 'Deck detected at {w}×{h} (16:9): adopted as the format.',
+  'Deck {w}×{h} (non 16:9): uso il canvas 1280×720.': 'Deck {w}×{h} (non-16:9): using the 1280×720 canvas.',
+  'HTML non-slide: aperto in modalità documento (pagina libera, scrollabile).':
+    'Non-slide HTML: opened in document mode (free, scrollable page).',
+  '⚠ slide rimpicciolita al {pct}% per starci nel canvas — modifica sospesa':
+    '⚠ slide scaled down to {pct}% to fit the canvas — editing suspended',
 };
 
 const DICT = { it: null, en: EN };
@@ -238,6 +255,17 @@ export function t(s) {
   if (current === 'it' || s == null) return s;
   const tr = DICT[current][String(s).trim()];
   return tr == null ? s : tr;
+}
+
+/**
+ * Traduce un TEMPLATE con segnaposto `{nome}` e poi interpola i `params`.
+ * La chiave del dizionario è il template italiano (es. 'Aperto "{title}" — {n} slide').
+ * Serve per gli hint costruiti a runtime: `t()` da solo non li tradurrebbe perché
+ * la stringa interpolata non corrisponde mai esattamente a una chiave.
+ */
+export function tf(template, params = {}) {
+  const tr = t(template);
+  return String(tr).replace(/\{(\w+)\}/g, (m, k) => (k in params ? String(params[k]) : m));
 }
 
 /** Imposta la lingua e accende/spegne l'observer dei nodi futuri (solo ≠ it). */

@@ -27,6 +27,7 @@ export class SelectionLayer {
     this.stage = stage;
     this.overlay = stage.overlay;
     this.eid = null;
+    this.groupEids = [];      // selezione multipla (≥2): box di gruppo move-only
     this.onChange = () => {}; // commit a fine drag
     this._build();
   }
@@ -58,6 +59,14 @@ export class SelectionLayer {
     this.box.append(this.rotate);
     this.overlay.append(this.box);
 
+    // --- selezione multipla: box di gruppo (solo spostamento) + outline membri ---
+    this.memberLayer = el('div', { class: 'group-members' });
+    this.overlay.append(this.memberLayer);
+    this.groupBox = el('div', { class: 'sel sel--group' });
+    this.groupBox.style.display = 'none';
+    this.overlay.append(this.groupBox);
+    this.groupBox.addEventListener('pointerdown', (e) => this._startGroupMove(e));
+
     this.box.addEventListener('pointerdown', (e) => {
       if (e.target.classList.contains('sel__h')) return this._startResize(e);
       if (e.target.closest('.sel__rotate')) return this._startRotate(e);
@@ -69,27 +78,127 @@ export class SelectionLayer {
   hide() {
     this.eid = null;
     this.box.style.display = 'none';
+    this.hideGroup();
     this._clearGuides();
+  }
+
+  // ---- selezione multipla (gruppo) ----
+  /** Mostra il box di gruppo (move-only) attorno ai membri + ne contorna ognuno. */
+  showGroup(eids) {
+    this.groupEids = (eids || []).slice();
+    this.eid = null;
+    this.box.style.display = 'none';   // niente box singolo in modalità gruppo
+    this._clearGuides();
+    this.refreshGroup();
+  }
+
+  hideGroup() {
+    this.groupEids = [];
+    this.groupBox.style.display = 'none';
+    this.memberLayer.replaceChildren();
+  }
+
+  /** Bounding box dei membri (in px logici) o null se <1 valido. */
+  _groupBBox() {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, n = 0;
+    for (const id of this.groupEids) {
+      const r = this.stage.rectOf(id);
+      if (!r) continue;
+      n++;
+      x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y);
+      x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h);
+    }
+    return n ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
+  }
+
+  refreshGroup() {
+    if (this.groupEids.length < 2 || this._suspended) { this.groupBox.style.display = 'none'; this.memberLayer.replaceChildren(); return; }
+    // contorni dei singoli membri
+    this.memberLayer.replaceChildren();
+    for (const id of this.groupEids) {
+      const r = this.stage.rectOf(id);
+      if (!r) continue;
+      const o = el('div', { class: 'group-member' });
+      o.style.cssText = `left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;` +
+        (r.angle ? `transform:rotate(${r.angle}deg);` : '');
+      this.memberLayer.append(o);
+    }
+    const b = this._groupBBox();
+    if (!b) { this.groupBox.style.display = 'none'; return; }
+    this.groupBox.style.display = 'block';
+    this.groupBox.style.left = `${b.x}px`;
+    this.groupBox.style.top = `${b.y}px`;
+    this.groupBox.style.width = `${b.w}px`;
+    this.groupBox.style.height = `${b.h}px`;
+  }
+
+  /** Sposta TUTTI i membri dello stesso delta (un solo commit). makeFree prima su
+   *  tutti (i segnaposto tengono fermi i fratelli in flusso), poi traslo left/top. */
+  _startGroupMove(e) {
+    e.preventDefault();
+    // ⇧-click sul box di gruppo = aggiungi/togli il membro sotto al cursore (il box
+    // coprirebbe l'iframe e impedirebbe il toggle diretto sull'elemento).
+    if (e.shiftKey) {
+      const p = this.stage.clientToLogical(e.clientX, e.clientY);
+      const hit = this.stage._stackAt(p.x, p.y)[0];
+      if (hit) this.stage.onToggleSelect(hit.getAttribute(EDITOR_ATTR));
+      return;
+    }
+    const ids = this.groupEids.slice();
+    const elms = ids.map((id) => this.stage.getElement(id)).filter(Boolean);
+    if (!elms.length) return;
+    try { this.groupBox.setPointerCapture(e.pointerId); } catch (_) { /* headless */ }
+    const sx = e.clientX, sy = e.clientY, s = this.stage.scale;
+    let started = false, starts = null;
+    const begin = () => {
+      elms.forEach((elm) => this.stage.makeFree(elm)); // tutti liberi (con segnaposto)
+      starts = elms.map((elm) => ({ elm, l: this._num(elm.style.left), t: this._num(elm.style.top) }));
+    };
+    const move = (ev) => {
+      if (!started) {
+        if (Math.abs(ev.clientX - sx) < 4 && Math.abs(ev.clientY - sy) < 4) return;
+        started = true; begin();
+      }
+      const dx = (ev.clientX - sx) / s, dy = (ev.clientY - sy) / s;
+      for (const it of starts) {
+        it.elm.style.left = `${Math.round(it.l + dx)}px`;
+        it.elm.style.top = `${Math.round(it.t + dy)}px`;
+      }
+      this.refreshGroup();
+    };
+    const up = () => {
+      this.groupBox.removeEventListener('pointermove', move);
+      this.groupBox.removeEventListener('pointerup', up);
+      try { this.groupBox.releasePointerCapture(e.pointerId); } catch (_) { /* noop */ }
+      if (started) { this.onChange(); this.refreshGroup(); }
+    };
+    this.groupBox.addEventListener('pointermove', move);
+    this.groupBox.addEventListener('pointerup', up);
   }
 
   /** Nasconde il box senza perdere la selezione (durante l'editing del testo). */
   suspend() {
     this._suspended = true;
     this.box.style.display = 'none';
+    this.groupBox.style.display = 'none';
+    this.memberLayer.replaceChildren();
     this._clearGuides();
   }
 
   resume() {
     this._suspended = false;
     this.refresh();
+    this.refreshGroup();
   }
 
   show(eid) {
     this.eid = eid;
+    this.hideGroup();   // singolo → niente gruppo
     this.refresh();
   }
 
   refresh() {
+    if (this.groupEids.length >= 2) return this.refreshGroup();
     if (!this.eid || this._suspended) return;
     const r = this.stage.rectOf(this.eid);
     if (!r) return this.hide();
@@ -165,7 +274,8 @@ export class SelectionLayer {
     if (!elm) return;
     try { this.box.setPointerCapture(e.pointerId); } catch (_) { /* headless/no-pointer */ }
     const sx = e.clientX, sy = e.clientY;
-    const through = e.altKey || e.metaKey;
+    const toggle = e.shiftKey;         // ⇧ = aggiungi/togli dalla selezione
+    const through = e.metaKey;         // ⌘ = seleziona l'elemento sotto
     const ang = this.stage.rectOf(this.eid)?.angle || 0; // niente snap se ruotato
     let started = false, init = null;
 
@@ -214,8 +324,10 @@ export class SelectionLayer {
       if (started) {
         this.onChange();              // commit dello spostamento
       } else if (!moveOnly) {
-        if (through) {
-          const p = this.stage.clientToLogical(sx, sy); // ⌥/⌘-click → elemento sotto
+        if (toggle) {
+          this.stage.onToggleSelect(this.eid); // ⌥-click → togli/aggiungi alla selezione
+        } else if (through) {
+          const p = this.stage.clientToLogical(sx, sy); // ⌘-click → elemento sotto
           this.stage.pickAt(p.x, p.y, true);
         } else {
           this.stage.beginEditingEid(this.eid); // click sul corpo → editing testo (PPT)

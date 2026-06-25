@@ -18,7 +18,8 @@ const HISTORY_CAP = 120;
 function createStore() {
   let deck = welcomeDeck();
   let currentIndex = 0;
-  let selectedEid = null;
+  let selectedEid = null;     // ancora della selezione (singolo / ultimo del set)
+  let selectedEids = [];      // selezione multipla (set); singola → [eid] o []
   const past = [];
   const future = [];
   const subs = new Set();
@@ -42,6 +43,7 @@ function createStore() {
     get currentIndex() { return currentIndex; },
     get currentSlide() { return deck.slides[currentIndex] || null; },
     get selectedEid() { return selectedEid; },
+    get selectedEids() { return selectedEids.slice(); },
     get canUndo() { return past.length > 0; },
     get canRedo() { return future.length > 0; },
 
@@ -51,7 +53,7 @@ function createStore() {
       if (!keepHistory) { past.length = 0; future.length = 0; }
       deck = next;
       currentIndex = 0;
-      selectedEid = null;
+      selectedEid = null; selectedEids = [];
       emit('deck');
     },
 
@@ -74,7 +76,7 @@ function createStore() {
       future.push(cloneDeck(deck));
       deck = past.pop();
       currentIndex = clampIndex(currentIndex);
-      selectedEid = null;
+      selectedEid = null; selectedEids = [];
       emit('undo');
     },
 
@@ -83,7 +85,7 @@ function createStore() {
       past.push(cloneDeck(deck));
       deck = future.pop();
       currentIndex = clampIndex(currentIndex);
-      selectedEid = null;
+      selectedEid = null; selectedEids = [];
       emit('redo');
     },
 
@@ -92,13 +94,21 @@ function createStore() {
       const ni = clampIndex(i);
       if (ni === currentIndex) return;
       currentIndex = ni;
-      selectedEid = null;
+      selectedEid = null; selectedEids = [];
       emit('current');
     },
 
     setSelected(eid) {
-      if (eid === selectedEid) return;
+      if (eid === selectedEid && selectedEids.length <= 1) return;
       selectedEid = eid;
+      selectedEids = eid ? [eid] : [];
+      emit('selection');
+    },
+
+    /** Selezione multipla: `eids` = insieme. L'ancora è l'ultimo del set. */
+    setSelectedMulti(eids) {
+      selectedEids = Array.from(new Set(eids || []));
+      selectedEid = selectedEids.length ? selectedEids[selectedEids.length - 1] : null;
       emit('selection');
     },
   };

@@ -23,7 +23,7 @@ import { EDITOR_ATTR, uid } from '../util/id.js';
 import { externalize, inline, describeAssetsForLlm, collectAssetIds, pruneAssets } from '../core/assets.js';
 import { snapshotAppearance, readAppearance } from '../core/appearance.js';
 import { sanitizeHtml } from '../core/sanitize.js';
-import { setLang, getLang, t, applyI18n } from '../core/i18n.js';
+import { setLang, getLang, t, tf, applyI18n } from '../core/i18n.js';
 import { ICONS, iconSvg } from '../core/icons.js';
 
 export class App {
@@ -92,6 +92,8 @@ export class App {
       this.inspector.render(eid);
       this._overlapHint(eid);
     };
+    this.stage.onMultiSelect = (eids) => this._setMultiSelection(eids);
+    this.stage.onToggleSelect = (eid) => this._toggleSelection(eid);
     this.stage.onBackground = () => this._deselect();
     this.stage.onEditStart = () => this.selection.suspend();
     this.stage.onEditEnd = () => this.selection.resume();
@@ -111,7 +113,7 @@ export class App {
       const w = $('#stage-warn');
       if (w) {
         w.hidden = !over;
-        if (over) w.textContent = `⚠ slide rimpicciolita al ${Math.round(scale * 100)}% per starci nel canvas — modifica sospesa`;
+        if (over) w.textContent = tf('⚠ slide rimpicciolita al {pct}% per starci nel canvas — modifica sospesa', { pct: Math.round(scale * 100) });
       }
       if (over) { store.setSelected(null); this.stage.selectedEid = null; this.selection.hide(); }
     };
@@ -247,6 +249,14 @@ export class App {
       if (meta && e.key.toLowerCase() === 'v' && this._clipboard) { e.preventDefault(); this._pasteElement(); return; }
       if (meta && e.key.toLowerCase() === 'd' && sel) { e.preventDefault(); this._duplicateElement(sel); return; }
       if (e.key === 'Escape') { this._deselect(); return; }
+      // selezione multipla: Canc/frecce agiscono su TUTTI i membri
+      if (store.selectedEids.length > 1) {
+        if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); this._deleteSelection(); return; }
+        const stepM = e.shiftKey ? 10 : 1;
+        const mapM = { ArrowLeft: ['left', -stepM], ArrowRight: ['left', stepM], ArrowUp: ['top', -stepM], ArrowDown: ['top', stepM] };
+        if (mapM[e.key]) { e.preventDefault(); this._nudgeSelection(mapM[e.key][0], mapM[e.key][1]); return; }
+        return;
+      }
       const eid = store.selectedEid;
       if (!eid) return;
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); this._deleteElement(eid); return; }
@@ -371,11 +381,33 @@ export class App {
     this.inspector.clear();
   }
 
+  // ---------- selezione multipla ----------
+  /** Imposta la selezione su un insieme di eid. 0 → deseleziona; 1 → selezione
+   *  singola ricca (box+maniglie); ≥2 → box di gruppo (solo spostamento). */
+  _setMultiSelection(eids) {
+    const valid = (eids || []).filter((id) => this.stage.getElement(id));
+    if (valid.length === 0) return this._deselect();
+    if (valid.length === 1) return this.stage.onSelect(valid[0]);
+    store.setSelectedMulti(valid);
+    this.stage.selectedEid = valid[valid.length - 1];
+    this.inspector.clear();             // niente inspector per-elemento in modalità gruppo
+    this.selection.showGroup(valid);
+    this._hint(tf('{n} elementi selezionati — trascina per spostarli insieme.', { n: valid.length }));
+  }
+
+  /** ⌥-click: aggiunge/toglie un eid dalla selezione corrente. */
+  _toggleSelection(eid) {
+    if (!eid) return;
+    const set = new Set(store.selectedEids);
+    set.has(eid) ? set.delete(eid) : set.add(eid);
+    this._setMultiSelection([...set]);
+  }
+
   /** Avvisa (e rende scopribile il gesto) quando l'elemento selezionato ne ha
    *  altri sovrapposti nello stesso punto: ⌥-click o Tab per raggiungerli. */
   _overlapHint(eid) {
     if (this.stage.hasForeignOverlap(eid)) {
-      this._hint('Altri elementi sovrapposti qui: ⌥-click o Tab per raggiungere quelli sotto.');
+      this._hint('Altri elementi sovrapposti qui: ⌘-click o Tab per raggiungere quelli sotto.');
     }
   }
 
@@ -677,7 +709,7 @@ export class App {
     const btn = document.querySelector('[data-action="lang"]');
     if (btn) btn.textContent = this._lang.toUpperCase();
     // nodi gestiti da codice (data-i18n-skip): risincronizza alla nuova lingua
-    if (this._lastHintMsg) this._hint(this._lastHintMsg);
+    if (this._lastHintMsg) this._hint(this._lastHintMsg, this._lastHintParams);
     if (document.querySelector('#inspector-body .inspector__empty')) {
       const it = $('#inspector-title'); if (it) it.textContent = t('Proprietà');
     }
@@ -722,6 +754,35 @@ export class App {
     elm.remove();
     this._deselect();
     this.commitStage('Elimina elemento');
+  }
+
+  /** Elimina tutti i membri della selezione multipla in un solo commit. */
+  _deleteSelection() {
+    const ids = store.selectedEids;
+    if (!ids.length) return;
+    for (const id of ids) {
+      const elm = this.stage.getElement(id);
+      if (!elm || elm.classList.contains('ss-root')) continue;
+      const sp = this.stage.doc.querySelector(`[data-ss-spacer="${CSS.escape(id)}"]`);
+      if (sp) sp.remove();
+      elm.remove();
+    }
+    this._deselect();
+    this.commitStage('Elimina elementi');
+  }
+
+  /** Sposta di 1/10px tutti i membri LIBERI (absolute) della selezione multipla. */
+  _nudgeSelection(prop, d) {
+    let moved = false;
+    for (const id of store.selectedEids) {
+      const elm = this.stage.getElement(id);
+      if (!elm) continue;
+      const cs = elm.ownerDocument.defaultView.getComputedStyle(elm);
+      if (cs.position !== 'absolute' && cs.position !== 'fixed') continue; // solo elementi liberi
+      elm.style[prop] = `${(parseInt(elm.style[prop], 10) || 0) + d}px`;
+      moved = true;
+    }
+    if (moved) { this.selection.refreshGroup(); this._nudgeCommit(); }
   }
 
   // ---------- clipboard (⌘C / ⌘V / ⌘D) ----------
@@ -839,9 +900,9 @@ export class App {
           deck.canvas = { w: det.w, h: det.h };
           deck._warnings = deck._warnings || [];
           if (det.kind === 'fixed' && (det.w !== CANVAS.w || det.h !== CANVAS.h)) {
-            deck._warnings.unshift(`Deck rilevato a ${det.w}×${det.h} (16:9): adottato come formato.`);
+            deck._warnings.unshift(tf('Deck rilevato a {w}×{h} (16:9): adottato come formato.', { w: det.w, h: det.h }));
           } else if (det.kind === 'fixed-non169') {
-            deck._warnings.unshift(`Deck ${det.detected.w}×${det.detected.h} (non 16:9): uso il canvas 1280×720.`);
+            deck._warnings.unshift(tf('Deck {w}×{h} (non 16:9): uso il canvas 1280×720.', { w: det.detected.w, h: det.detected.h }));
           }
         } catch (_) { /* canvas resta quello di default del modello */ }
       }
@@ -852,11 +913,12 @@ export class App {
       this._fileName = name || null;
       this._isWelcome = false; // ora c'è un deck reale: la lingua non lo tocca più
       this._dirty = false;
-      const warn = deck._warnings?.length ? ` ⚠ ${deck._warnings[0]}` : '';
-      const where = bound ? ' — le modifiche si salveranno su questo file' : '';
-      this._hint(`Aperto "${deck.meta.title}" — ${deck.slides.length} slide${where}.${warn}`);
+      const warn = deck._warnings?.length ? ` ⚠ ${t(deck._warnings[0])}` : '';
+      const where = bound ? ` — ${t('le modifiche si salveranno su questo file')}` : '';
+      this._hint('Aperto "{title}" — {n} slide{where}.{warn}',
+        { title: deck.meta.title, n: deck.slides.length, where, warn });
     } catch (err) {
-      this._hint(`Errore apertura: ${err.message}`);
+      this._hint('Errore apertura: {msg}', { msg: err.message });
     } finally {
       this._loading = false;
       this._updateFileStatus();
@@ -973,7 +1035,10 @@ _present() {
   }
 
   // ---------- misc ----------
-  _hint(msg) { this._lastHintMsg = msg; const h = $('#stage-hint'); if (h) h.textContent = t(msg); }
+  _hint(msg, params) {
+    this._lastHintMsg = msg; this._lastHintParams = params;
+    const h = $('#stage-hint'); if (h) h.textContent = params ? tf(msg, params) : t(msg);
+  }
   _updateZoom() {
     const z = $('#zoom-label');
     if (z) z.textContent = `${Math.round(this.stage.scale * 100)}%`;

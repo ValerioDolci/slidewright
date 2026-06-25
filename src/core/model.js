@@ -119,7 +119,8 @@ const WELCOME_SLIDE_2 = `<div class="header"><span class="badge">Come si usa</sp
       <ul>
         <li><b>Click</b> su un elemento per selezionarlo</li>
         <li><b>Click di nuovo</b> (o doppio click) sul testo per scriverci</li>
-        <li><b>⌥-click</b> per scegliere l'elemento <i>sotto</i> a quelli sovrapposti</li>
+        <li><b>⌘-click</b> per scegliere l'elemento <i>sotto</i> a quelli sovrapposti</li>
+        <li><b>⇧-click</b> aggiunge/toglie dalla selezione · <b>⇧-trascina</b> = riquadro per più box</li>
         <li><b>Tab</b> / <b>⇧Tab</b> per scorrere gli elementi della slide</li>
       </ul>
     </div>
@@ -163,7 +164,8 @@ const WELCOME_EN_2 = `<div class="header"><span class="badge">How it works</span
       <ul>
         <li><b>Click</b> an element to select it</li>
         <li><b>Click again</b> (or double-click) on text to type into it</li>
-        <li><b>⌥-click</b> to pick the element <i>below</i> overlapping ones</li>
+        <li><b>⌘-click</b> to pick the element <i>below</i> overlapping ones</li>
+        <li><b>⇧-click</b> add/remove from the selection · <b>⇧-drag</b> = marquee for many boxes</li>
         <li><b>Tab</b> / <b>⇧Tab</b> to cycle through the slide elements</li>
       </ul>
     </div>

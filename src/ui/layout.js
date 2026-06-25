@@ -66,7 +66,9 @@ export const WORKSPACE_HTML = `
           <h4>Gesti</h4>
           <ul>
             <li><b>Click</b> → seleziona · <b>click di nuovo</b> → scrivi nel testo</li>
-            <li><b>⌥-click</b> → seleziona l'elemento <b>sotto</b> a quelli sovrapposti</li>
+            <li><b>⌘-click</b> → seleziona l'elemento <b>sotto</b> a quelli sovrapposti</li>
+            <li><b>⇧-click</b> → aggiungi/togli dalla selezione</li>
+            <li><b>⇧-trascina</b> → riquadro: seleziona più box e spostali insieme</li>
             <li><b>Crocetta ✥</b> sopra il box → sposta <span class="help__k">snap · Alt = libero</span></li>
             <li><b>Maniglie</b> → ridimensiona <span class="help__k">Shift = mantieni proporzioni</span></li>
             <li><b>Trascina un file .html</b> nella finestra → importa deck</li>

@@ -25,6 +25,8 @@
     import { EDITOR_ATTR } from '/src/util/id.js';
     import { ICONS, iconSvg } from '/src/core/icons.js';
     import { snapshotAppearance, readAppearance } from '/src/core/appearance.js';
+    import { t, tf, setLang } from '/src/core/i18n.js';
+    import { store } from '/src/core/store.js';
 
     const log = []; let pass = 0, fail = 0;
     const A = (cond, msg) => {
@@ -472,6 +474,68 @@
         const dupSnap = snapshotAppearance(dupEl, window);
         A((dupSnap.getAttribute('style').match(/(?:^|;)\s*color:/g) || []).length === 1, 'snapshot: nessuna proprietà color duplicata');
         probe.remove();
+      }
+
+      // ---- i18n: tf() interpola un template TRADOTTO (hint dinamici) ----
+      {
+        setLang('it');
+        A(tf('Errore apertura: {msg}', { msg: 'boom' }) === 'Errore apertura: boom', 'tf IT: interpola senza tradurre');
+        A(tf('Aperto "{title}" — {n} slide{where}.{warn}', { title: 'Aurora', n: 5, where: '', warn: '' })
+          === 'Aperto "Aurora" — 5 slide.', 'tf IT: hint apertura completo');
+        setLang('en');
+        A(tf('Errore apertura: {msg}', { msg: 'boom' }) === 'Open error: boom', 'tf EN: traduce E interpola');
+        A(tf('Aperto "{title}" — {n} slide{where}.{warn}',
+             { title: 'Aurora', n: 5, where: ` — ${t('le modifiche si salveranno su questo file')}`, warn: '' })
+          === 'Opened "Aurora" — 5 slides — changes will be saved to this file.', 'tf EN: hint apertura con segmento where tradotto');
+        A(tf('⚠ slide rimpicciolita al {pct}% per starci nel canvas — modifica sospesa', { pct: 70 })
+          === '⚠ slide scaled down to 70% to fit the canvas — editing suspended', 'tf EN: banner overflow tradotto+interpolato');
+        A(tf('Deck rilevato a {w}×{h} (16:9): adottato come formato.', { w: 1920, h: 1080 })
+          === 'Deck detected at 1920×1080 (16:9): adopted as the format.', 'tf EN: warning canvas tradotto+interpolato');
+        A(t('Per aprire un deck, trascina un file .html.') === 'To open a deck, drag a .html file.', 'i18n EN: hint statico drag aggiunto al dizionario');
+        // segnaposto mancante resta letterale (no crash)
+        A(tf('x {nope} y', {}) === 'x {nope} y', 'tf: segnaposto senza param resta invariato');
+        setLang('it');
+      }
+
+      // ---- store: selezione multipla (sync ancora ↔ set) ----
+      {
+        store.setSelected('x');
+        A(store.selectedEid === 'x' && store.selectedEids.length === 1 && store.selectedEids[0] === 'x', 'store: setSelected sincronizza set=[eid]');
+        store.setSelectedMulti(['a', 'b', 'b', 'c']);
+        A(store.selectedEids.length === 3 && store.selectedEid === 'c', 'store: setSelectedMulti dedup + ancora = ultimo');
+        store.setSelected(null);
+        A(store.selectedEid === null && store.selectedEids.length === 0, 'store: deseleziona azzera il set');
+        store.setSelectedMulti(['a', 'b']);
+        store.setCurrentIndex(store.currentIndex === 0 ? 1 : 0);
+        A(store.selectedEids.length === 0, 'store: cambio slide azzera la selezione multipla');
+        store.setSelected(null);
+      }
+
+      // ---- stage.elementsInRect: containment + scarto discendenti (marquee) ----
+      {
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'position:fixed;left:-3000px;top:0;width:640px;height:360px';
+        wrap.innerHTML = '<div class="scene" style="width:640px;height:360px"><div class="canvas"><iframe class="frame"></iframe></div><div class="overlay"></div></div>';
+        document.body.appendChild(wrap);
+        const st = new Stage({
+          sceneEl: wrap.querySelector('.scene'), canvasEl: wrap.querySelector('.canvas'),
+          frameEl: wrap.querySelector('.frame'), overlayEl: wrap.querySelector('.overlay'),
+        });
+        const slideHtml =
+          '<div class="b1" style="position:absolute;left:100px;top:100px;width:80px;height:60px">A</div>' +
+          '<div class="b2" style="position:absolute;left:300px;top:100px;width:80px;height:60px">B</div>' +
+          '<div class="cont" style="position:absolute;left:500px;top:300px;width:200px;height:150px">' +
+            '<div class="child" style="position:absolute;left:10px;top:10px;width:50px;height:40px">c</div></div>';
+        st.render({ id: 's1', html: slideHtml, classes: [] }, '', 'deck', { w: 1280, h: 720 });
+        const eidOf = (sel) => st.doc.querySelector(sel)?.getAttribute('data-ss-eid');
+        const e1 = eidOf('.b1'), e2 = eidOf('.b2'), ec = eidOf('.cont');
+        const inBoth = st.elementsInRect({ x: 90, y: 90, w: 300, h: 90 });
+        A(inBoth.includes(e1) && inBoth.includes(e2) && inBoth.length === 2, `marquee: racchiude b1+b2 (${inBoth.length})`);
+        const partial = st.elementsInRect({ x: 90, y: 90, w: 50, h: 90 });
+        A(!partial.includes(e1), 'marquee: box solo parzialmente coperto NON selezionato (containment)');
+        const contRect = st.elementsInRect({ x: 490, y: 290, w: 220, h: 170 });
+        A(contRect.includes(ec) && contRect.length === 1, `marquee: contenitore racchiuso → solo il padre, niente discendente (${contRect.length})`);
+        wrap.remove();
       }
     } catch (e) {
       fail++; log.push(`<span class="bad">EXCEPTION</span> ${e.message}\n${e.stack}`);
