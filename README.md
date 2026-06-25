@@ -21,11 +21,11 @@
   <img src="https://img.shields.io/badge/data-stays%20on%20your%20machine-b45309" alt="local-first" />
 </p>
 
-<!--
-  TODO Valerio: registra la GIF demo (10-15s) e salvala in assets/demo.gif, poi
-  scommenta il blocco qui sotto. Storyboard in docs/launch/gif-storyboard.md.
-<p align="center"><img src="assets/demo.gif" alt="Slidewright in action" width="760" /></p>
--->
+<p align="center">
+  <a href="https://valeriodolci.github.io/slidewright/"><img src="assets/demo-poster.png" alt="Slidewright — editing an HTML deck" width="760" /></a>
+  <br />
+  <a href="assets/demo.mp4"><b>▶ Watch the 8-second demo</b></a> · <a href="https://valeriodolci.github.io/slidewright/"><b>Try it live</b></a>
+</p>
 
 ---
 
