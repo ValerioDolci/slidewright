@@ -2,7 +2,7 @@
   "name": "slidewright",
   "displayName": "Slidewright",
   "description": "Editor visuale per deck di slide HTML: riordino, editing testo e grafico, export, agente LLM (Copilot via vscode.lm).",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "publisher": "valeriodolci",
   "icon": "icon.png",
   "license": "MIT",
