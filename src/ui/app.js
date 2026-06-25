@@ -175,9 +175,7 @@ export class App {
     on('new-deck', () => this._newDeck());
     on('export-html', () => this._exportHtml());
     on('export-pdf', () => this._exportPdf());
-    on('toggle-pdf-mode', (e) => this._togglePdfMode(e.currentTarget));
     on('capture-pdf', () => this._capturePdf());
-    this._syncPdfModeBtn();
     on('undo', () => this._undo());
     on('redo', () => this._redo());
     on('add-text', () => this._addText());
@@ -940,15 +938,12 @@ export class App {
   async _exportPdf() {
     if (this._exporting) { this._hint('Un export è già in corso…'); return; }
     this.commitStage(null);
-    // Raster ON di default: PDF fedele su ogni device (immagini, niente trasparenze da comporre).
-    // Spegnibile (PDF vettoriale, testo selezionabile) dal toggle accanto al bottone.
-    const raster = this.platform.storage.get('ss-pdf-raster') !== 'off';
+    // VETTORIALE (testo selezionabile, leggero): apre la stampa diretta. Per un PDF a immagini
+    // identico su ogni device (mobile incluso) c'è "Cattura PDF".
     this._exporting = true;
-    this._hint(raster
-      ? 'Preparo il PDF nitido (immagini)… poi scegli "Salva come PDF".'
-      : 'Apertura stampa… scegli "Salva come PDF" e attiva "Grafica di sfondo".');
+    this._hint('Apertura stampa… scegli "Salva come PDF" e attiva "Grafica di sfondo".');
     try {
-      await this.platform.exportPdf(store.deck, { raster });
+      await this.platform.exportPdf(store.deck, { raster: false });
     } finally {
       this._exporting = false;
     }
@@ -972,26 +967,7 @@ export class App {
     }
   }
 
-  _pdfRasterOn() { return this.platform.storage.get('ss-pdf-raster') !== 'off'; }
-
-  _syncPdfModeBtn() {
-    const b = $('[data-action="toggle-pdf-mode"]'); if (!b) return;
-    const on = this._pdfRasterOn();
-    b.textContent = on ? '🖼' : '🅣';
-    b.setAttribute('aria-pressed', String(on));
-    b.title = on
-      ? 'PDF: nitido (immagini, fedele su ogni device). Clic → vettoriale (testo selezionabile).'
-      : 'PDF: vettoriale (testo selezionabile; trasparenze rese diversamente da alcuni viewer). Clic → nitido (immagini).';
-  }
-
-  _togglePdfMode(btn) {
-    const next = this._pdfRasterOn() ? 'off' : 'on';
-    this.platform.storage.set('ss-pdf-raster', next);
-    this._syncPdfModeBtn();
-    this._hint(next === 'off' ? 'PDF impostato su vettoriale (testo selezionabile).' : 'PDF impostato su nitido (immagini, fedele ovunque).');
-  }
-
-  _present() {
+_present() {
     this.commitStage(null);
     this.platform.present(buildDeckHtml(store.deck));
   }
