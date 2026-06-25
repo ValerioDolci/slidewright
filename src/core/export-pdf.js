@@ -244,31 +244,68 @@ html,body{margin:0;padding:0;}
 }
 
 // ============================ EXPORT PDF "CATTURA SCHERMO" ============================
-// Differenza con il raster snapdom: qui NON si ri-disegna il DOM (snapdom approssima → reflow
-// dei titoli, colori spenti). Si fa uno SCREENSHOT del RENDER REALE del browser via Screen
-// Capture API (getDisplayMedia) → fedele al 100% (è una "foto" di ciò che il browser disegna),
-// e senza trasparenze nel PDF → identico su ogni viewer/device (aggira il bug Skia del PDF
-// vettoriale). Richiede UN consenso utente per export (Chrome/Edge ricordano per la sessione).
-// Region Capture (track.cropTo su CropTarget) limita la cattura al solo stage 16:9 → niente
-// ritaglio/bande; fallback: ritaglio manuale del rettangolo 16:9 centrato.
+// Screenshot del RENDER REALE del browser via Screen Capture API: fedele al 100% e senza
+// trasparenze nel PDF → identico su ogni viewer/device (aggira il bug Skia del PDF vettoriale).
+// Le slide sono rese in un <div> con Shadow DOM (NON un iframe): l'Element Capture (restrictTo)
+// emette frame su un div ma non su un iframe, cattura il CONTENUTO dell'elemento (niente cursore)
+// e produce un frame a ogni render (non serve muovere il mouse). Fallback: Region Capture (cropTo).
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** True se il canvas è (quasi) uniforme su punti sparsi → frame vuoto (restrictTo non riuscito). */
-function isBlankCanvas(canvas) {
-  try {
-    const ctx = canvas.getContext('2d');
-    const w = canvas.width, h = canvas.height;
-    const pts = [[0.5, 0.5], [0.2, 0.3], [0.8, 0.3], [0.2, 0.7], [0.8, 0.7], [0.5, 0.15], [0.5, 0.85]];
-    let r0 = -1, g0 = -1, b0 = -1, variance = 0;
-    for (const [fx, fy] of pts) {
-      const d = ctx.getImageData(Math.min(w - 1, fx * w | 0), Math.min(h - 1, fy * h | 0), 1, 1).data;
-      if (r0 < 0) { r0 = d[0]; g0 = d[1]; b0 = d[2]; }
-      variance += Math.abs(d[0] - r0) + Math.abs(d[1] - g0) + Math.abs(d[2] - b0);
+/**
+ * Appiattisce le @media del CSS del deck rispetto al canvas FISSO cw×ch. Nel Shadow DOM le
+ * @media si valuterebbero sul viewport reale (e `zoom` non le tocca) → deck responsive sbagliati.
+ * Le condizioni width/height/orientation note sono valutate contro cw×ch: se vere, le regole
+ * interne salgono a top-level; se false (incl. `print`) si scartano; quelle non interpretabili
+ * restano com'erano (degrado al comportamento attuale, mai peggio).
+ */
+export function flattenMedia(css, cw, ch) {
+  const evalCond = (cond) => {
+    const c = String(cond).trim().toLowerCase();
+    if (!c || c === 'all' || c === 'screen' || c === 'screen and') return true;
+    if (/\bprint\b/.test(c)) return false;
+    const feats = c.match(/\(([^)]+)\)/g);
+    if (!feats) return null;
+    let ok = true, parsed = false;
+    for (const f of feats) {
+      const [rawK, rawV = ''] = f.replace(/[()]/g, '').split(':');
+      const key = rawK.trim(), val = rawV.trim(), px = parseFloat(val);
+      if (key === 'min-width') { ok = ok && cw >= px; parsed = true; }
+      else if (key === 'max-width') { ok = ok && cw <= px; parsed = true; }
+      else if (key === 'min-height') { ok = ok && ch >= px; parsed = true; }
+      else if (key === 'max-height') { ok = ok && ch <= px; parsed = true; }
+      else if (key === 'orientation') { ok = ok && ((val === 'landscape') === (cw >= ch)); parsed = true; }
+      else return null; // feature non gestita → non rischiare, lascia il blocco
     }
-    return variance < 12; // tutti i campioni quasi identici → nessun contenuto
-  } catch (_) { return false; }
+    return parsed ? ok : null;
+  };
+  let out = '', i = 0;
+  while (i < css.length) {
+    const at = css.indexOf('@media', i);
+    if (at < 0) { out += css.slice(i); break; }
+    out += css.slice(i, at);
+    const open = css.indexOf('{', at);
+    if (open < 0) { out += css.slice(at); break; }
+    const cond = css.slice(at + 6, open);
+    let depth = 1, j = open + 1;
+    while (j < css.length && depth > 0) { const ch2 = css[j++]; if (ch2 === '{') depth++; else if (ch2 === '}') depth--; }
+    const inner = css.slice(open + 1, j - 1);
+    const res = evalCond(cond);
+    if (res === true) out += inner;                 // condizione vera → regole a top-level
+    else if (res === null) out += css.slice(at, j); // non interpretabile → lascia com'era
+    // res === false → scarta il blocco
+    i = j;
+  }
+  return out;
 }
+
+/** `:root` → `:host`, gestendo i selettori composti (`:root.dark` → `:host(.dark)`). */
+function rootToHost(css) {
+  return String(css).replace(/:root(\([^)]*\))?((?:[.:#[][^\s,{(]+)*)/g,
+    (_, fn, rest) => (rest ? `:host(${rest})` : ':host' + (fn || '')));
+}
+
+const escAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 
 /**
  * Cattura ogni slide come immagine dal render REALE del browser (Screen Capture API).
@@ -280,72 +317,68 @@ export async function captureDeck(deck, opts = {}) {
   const md = navigator.mediaDevices;
   if (!md || !md.getDisplayMedia) throw new Error('Cattura schermo non supportata da questo browser.');
 
-  // Le slide sono renderizzate in un <div> (NON un iframe): l'Element Capture (restrictTo) emette
-  // frame solo se il target è un elemento "normale" — su un iframe NON emette frame. Element Capture
-  // cattura il CONTENUTO dell'elemento (niente cursore di sistema) e produce un frame a ogni render
-  // (non serve muovere il mouse). Per isolare il CSS del deck dall'editor: lo si inietta in uno
-  // <style> TEMPORANEO sotto un overlay nero a tutto schermo (sbordo invisibile, rimosso a fine).
-
   // vh/vw → px fissi (senza iframe si riferirebbero al viewport reale).
   const toPx = (css) => String(css || '').replace(/(-?\d*\.?\d+)(vw|vh|vmin|vmax)\b/g, (_, n, u) => {
     const f = { vw: cw / 100, vh: ch / 100, vmin: Math.min(cw, ch) / 100, vmax: Math.max(cw, ch) / 100 }[u];
     return `${(parseFloat(n) * f).toFixed(4)}px`;
   });
-  const styleCssPx = toPx(deck.styleCss || '');
 
-  const overlay = document.createElement('div');
-  Object.assign(overlay.style, {
-    position: 'fixed', inset: '0', zIndex: '2147483647', background: '#000',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: 'none',
-  });
-  // target di restrictTo: div idoneo all'Element Capture (stacking context + flat). NIENTE
-  // transform né su di esso NÉ su un antenato: un `transform` lo rende non idoneo (frame 1×1).
-  // Per scalare alla finestra si usa `zoom` (non genera un contesto trasformato). EC cattura
-  // comunque alla risoluzione dello schermo, quindi resta nitido.
-  const target = document.createElement('div');
-  Object.assign(target.style, {
-    width: `${cw}px`, height: `${ch}px`, overflow: 'hidden', position: 'relative',
-    isolation: 'isolate', transformStyle: 'flat',
-    zoom: String(Math.min(window.innerWidth / cw, window.innerHeight / ch)),
-  });
-  overlay.appendChild(target);
-  document.body.appendChild(overlay);
+  // Tutto il setup (overlay, shadow, ecc.) DENTRO il try: se qualcosa lancia (attachShadow non
+  // supportato, ecc.) il finally ripristina comunque cursore e rimuove l'overlay (niente lock).
+  let stream, video, overlay;
   const prevCursor = document.documentElement.style.cursor;
-  document.documentElement.style.cursor = 'none';
+  try {
+    const styleCssPx = flattenMedia(toPx(deck.styleCss || ''), cw, ch);
 
-  // SHADOW DOM: isola il CSS del deck dall'editor (altrimenti le regole dell'editor — es. su
-  // `.slide` — nascondono/alterano il contenuto, e quelle del deck "sbordano" sull'editor).
-  const shadow = target.attachShadow({ mode: 'open' });
-  // stili EREDITABILI del body del deck → su :host (nel shadow il body del deck non esiste).
-  let bodyInherited = '';
-  try { bodyInherited = await computeBodyInheritedStyle(styleCssPx, { w: cw, h: ch }); } catch (_) { /* noop */ }
-  const styleEl = document.createElement('style');
-  // `:root`→`:host`: le custom properties (var) del deck sono di solito in :root, che nel shadow
-  // NON matcha → vanno spostate su :host.
-  styleEl.textContent = `:host{display:block;width:${cw}px;height:${ch}px;overflow:hidden;background:#fff;${bodyInherited}}` +
-    styleCssPx.replace(/:root\b/g, ':host') + `
+    overlay = document.createElement('div');
+    Object.assign(overlay.style, {
+      position: 'fixed', inset: '0', zIndex: '2147483647', background: '#000',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: 'none',
+    });
+    // target di restrictTo: idoneo all'Element Capture (stacking context + flat). NIENTE transform
+    // né su di esso NÉ su un antenato (→ frame 1×1). Scaling con `zoom` (non crea contesto trasformato).
+    const target = document.createElement('div');
+    Object.assign(target.style, {
+      width: `${cw}px`, height: `${ch}px`, overflow: 'hidden', position: 'relative',
+      isolation: 'isolate', transformStyle: 'flat',
+      zoom: String(Math.min(window.innerWidth / cw, window.innerHeight / ch)),
+    });
+    overlay.appendChild(target);
+    document.body.appendChild(overlay);
+    document.documentElement.style.cursor = 'none';
+
+    // SHADOW DOM: isola il CSS del deck dall'editor (e viceversa).
+    const shadow = target.attachShadow({ mode: 'open' });
+    let bodyInherited = '';
+    try { bodyInherited = await computeBodyInheritedStyle(styleCssPx, { w: cw, h: ch }); } catch (_) { /* noop */ }
+    const styleEl = document.createElement('style');
+    styleEl.textContent = `:host{display:block;width:${cw}px;height:${ch}px;overflow:hidden;background:#fff;${bodyInherited}}` +
+      rootToHost(styleCssPx) + `
 .ss-cap-deck{position:absolute !important;inset:0 !important;width:auto !important;height:auto !important;margin:0 !important;overflow:hidden}
 .ss-cap-deck > .slide{position:absolute !important;left:0 !important;top:0 !important;right:auto !important;bottom:auto !important;margin:0 !important;width:${cw}px !important;height:${ch}px !important;transform:none !important;opacity:1 !important;visibility:visible !important}`;
-  shadow.appendChild(styleEl);
-  const deckEl = document.createElement('div');
-  deckEl.className = 'deck ss-cap-deck';
-  shadow.appendChild(deckEl);
+    shadow.appendChild(styleEl);
+    const deckEl = document.createElement('div');
+    deckEl.className = 'deck ss-cap-deck';
+    shadow.appendChild(deckEl);
 
-  const renderSlide = (i) => {
-    const s = deck.slides[i];
-    const cls = ['slide', ...(s.classes || []), 'active'].filter(Boolean).join(' ');
-    const id = s.elId ? ` id="${s.elId}"` : '';
-    deckEl.innerHTML = `<section${id} class="${cls}">${cleanSlideHtml(s.html)}</section>`;
-  };
-  const waitFrame = (ms) => new Promise((res) => {
-    let done = false; const go = () => { if (done) return; done = true; res(); };
-    if (video && video.requestVideoFrameCallback) video.requestVideoFrameCallback(() => go());
-    else go();
-    setTimeout(go, ms);
-  });
+    const renderSlide = async (i) => {
+      const s = deck.slides[i];
+      const cls = escAttr(['slide', ...(s.classes || []), 'active'].filter(Boolean).join(' '));
+      const id = s.elId ? ` id="${escAttr(s.elId)}"` : '';
+      deckEl.innerHTML = `<section${id} class="${cls}">${cleanSlideHtml(s.html)}</section>`;
+      // Attendi la DECODE delle <img> (le base64 decodificano in ms; le rete hanno un cap): senza,
+      // si catturerebbe la slide con immagini a metà. (I background-image data: non sono coperti qui.)
+      const imgs = [].slice.call(deckEl.querySelectorAll('img'));
+      await Promise.all(imgs.map((img) => (img.complete && img.naturalWidth)
+        ? null : Promise.race([img.decode().catch(() => {}), sleep(2000)])));
+    };
+    const waitFrame = (ms) => new Promise((res) => {
+      let done = false; const go = () => { if (done) return; done = true; res(); };
+      if (video && video.requestVideoFrameCallback) video.requestVideoFrameCallback(() => go());
+      else go();
+      setTimeout(go, ms);
+    });
 
-  let stream, video;
-  try {
     stream = await md.getDisplayMedia({
       video: { displaySurface: 'browser', frameRate: 30, cursor: 'never' },
       audio: false, preferCurrentTab: true, selfBrowserSurface: 'include',
@@ -374,8 +407,8 @@ export async function captureDeck(deck, opts = {}) {
     const images = [];
     const n = deck.slides.length;
     for (let i = 0; i < n; i++) {
-      renderSlide(i);
-      await sleep(120);      // assestamento layout + decode immagini base64
+      await renderSlide(i);
+      await sleep(120);      // assestamento layout + decode background-image data: URI
       await waitFrame(450);  // 1° frame fresco (in transito) — Element Capture lo emette a ogni render
       await waitFrame(450);  // 2° frame: garantisce che rifletta GIÀ la slide corrente (no sfasamenti)
 
@@ -399,7 +432,7 @@ export async function captureDeck(deck, opts = {}) {
     if (stream) stream.getTracks().forEach((t) => t.stop());
     if (video) { try { video.pause(); video.srcObject = null; video.remove(); } catch (_) { /* noop */ } }
     document.documentElement.style.cursor = prevCursor;
-    overlay.remove();
+    if (overlay) overlay.remove();
   }
 }
 

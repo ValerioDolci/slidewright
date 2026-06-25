@@ -29,7 +29,7 @@ export const WORKSPACE_HTML = `
       <span class="topbar__sep"></span>
       <button class="btn" data-action="export-html" title="Esporta una copia HTML">Esporta HTML</button>
       <button class="btn" data-action="export-pdf" title="Esporta PDF vettoriale (testo selezionabile, leggero)">Esporta PDF</button>
-      <button class="btn" data-action="capture-pdf" data-i18n-skip
+      <button class="btn" data-action="capture-pdf"
         title="Esporta PDF a immagini catturando il render reale: identico su ogni viewer (mobile incluso). Richiede un consenso di condivisione.">📷 Cattura PDF</button>
     </div>
 

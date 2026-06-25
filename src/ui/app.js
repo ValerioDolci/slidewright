@@ -957,11 +957,11 @@ export class App {
     this._hint('Consenti la condivisione se richiesto: catturo le slide…');
     try {
       await this.platform.capturePdf(store.deck, {
-        onProgress: (i, tot) => this._hint(`Cattura slide ${i}/${tot}…`),
+        onProgress: (i, tot) => this._hint(`${t('Cattura slide')} ${i}/${tot}…`),
       });
       this._hint('Cattura completata: scegli "Salva come PDF".');
     } catch (e) {
-      this._hint(`Cattura annullata o non riuscita${e && e.message ? ': ' + e.message : ''}.`);
+      this._hint(`${t('Cattura annullata o non riuscita')}${e && e.message ? ': ' + e.message : ''}.`);
     } finally {
       this._exporting = false;
     }

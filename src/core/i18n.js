@@ -39,7 +39,18 @@ const EN = {
   'Esporta una copia HTML': 'Export an HTML copy',
   'Esporta HTML': 'Export HTML',
   'Esporta PDF (stesso formato slide)': 'Export PDF (same slide format)',
+  'Esporta PDF vettoriale (testo selezionabile, leggero)': 'Export vector PDF (selectable text, lightweight)',
   'Esporta PDF': 'Export PDF',
+  // ---- cattura PDF (Element Capture) ----
+  '📷 Cattura PDF': '📷 Capture PDF',
+  'Esporta PDF a immagini catturando il render reale: identico su ogni viewer (mobile incluso). Richiede un consenso di condivisione.':
+    'Export an image PDF by capturing the real render: identical on every viewer (mobile included). Requires a sharing consent.',
+  'Consenti la condivisione se richiesto: catturo le slide…': 'Allow sharing if prompted: capturing the slides…',
+  'Cattura slide': 'Capturing slide',
+  'Cattura completata: scegli "Salva come PDF".': 'Capture done: choose "Save as PDF".',
+  'Cattura annullata o non riuscita': 'Capture cancelled or failed',
+  'Cattura non disponibile in questo ambiente.': 'Capture not available in this environment.',
+  'Un export è già in corso…': 'An export is already in progress…',
 
   // ---- toolbar: modifica ----
   'Modifica': 'Edit',

@@ -17,7 +17,7 @@
   <script type="module">
     import { parseDeck } from '/src/core/import.js';
     import { buildDeckHtml, cleanSlideHtml } from '/src/core/export-html.js';
-    import { buildPrintHtml, buildRasterPrintHtml, rasterizeDeck } from '/src/core/export-pdf.js';
+    import { buildPrintHtml, buildRasterPrintHtml, rasterizeDeck, flattenMedia } from '/src/core/export-pdf.js';
     import { externalize, inline, describeAssetsForLlm, collectAssetIds, pruneAssets } from '/src/core/assets.js';
     import { createDeck, cloneDeck, welcomeDeck } from '/src/core/model.js';
     import { rgbaParts, hexToRgba, Inspector } from '/src/ui/inspector.js';
@@ -124,6 +124,13 @@
       A(/class="ss-raster"/.test(rp) && (rp.match(/ss-page/g) || []).length >= 2, 'raster: 1 pagina @page per immagine');
       A(/@page\s*\{\s*size:\s*338\.667mm 190\.500mm/.test(rp) && !/ss-print-fr/.test(rp) && !/iframe/.test(rp), 'raster: pagine 16:9 di sole immagini (no iframe/trasparenze)');
       A(typeof rasterizeDeck === 'function', 'raster: rasterizeDeck esportato (snapdom caricato dinamicamente a runtime)');
+
+      // ---- flattenMedia: @media valutate sul canvas FISSO (cattura senza viewport reale) ----
+      A(flattenMedia('a{color:red}', 1280, 720) === 'a{color:red}', 'flattenMedia: CSS senza @media invariato');
+      A(/\.x\{color:blue\}/.test(flattenMedia('@media(max-width:1500px){.x{color:blue}}', 1280, 720)) && !/@media/.test(flattenMedia('@media(max-width:1500px){.x{color:blue}}', 1280, 720)), 'flattenMedia: @media vera → regole a top-level (canvas 1280)');
+      A(flattenMedia('@media(min-width:1500px){.x{color:blue}}', 1280, 720).trim() === '', 'flattenMedia: @media falsa (min-width oltre canvas) → scartata');
+      A(flattenMedia('@media print{.x{color:blue}}', 1280, 720).trim() === '', 'flattenMedia: @media print → scartata (PDF a immagini, niente print CSS del deck)');
+      A(/@media\(hover:hover\)/.test(flattenMedia('@media(hover:hover){.x{color:blue}}', 1280, 720)), 'flattenMedia: feature non interpretabile → blocco lasciato com\'era');
 
       // ---- libreria icone ----
       A(Object.keys(ICONS).length >= 12, `icone: raccolta ≥12 (${Object.keys(ICONS).length})`);
