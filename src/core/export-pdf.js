@@ -216,6 +216,22 @@ html,body{margin:0;padding:0;}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** True se il canvas è (quasi) uniforme su punti sparsi → frame vuoto (restrictTo non riuscito). */
+function isBlankCanvas(canvas) {
+  try {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    const pts = [[0.5, 0.5], [0.2, 0.3], [0.8, 0.3], [0.2, 0.7], [0.8, 0.7], [0.5, 0.15], [0.5, 0.85]];
+    let r0 = -1, g0 = -1, b0 = -1, variance = 0;
+    for (const [fx, fy] of pts) {
+      const d = ctx.getImageData(Math.min(w - 1, fx * w | 0), Math.min(h - 1, fy * h | 0), 1, 1).data;
+      if (r0 < 0) { r0 = d[0]; g0 = d[1]; b0 = d[2]; }
+      variance += Math.abs(d[0] - r0) + Math.abs(d[1] - g0) + Math.abs(d[2] - b0);
+    }
+    return variance < 12; // tutti i campioni quasi identici → nessun contenuto
+  } catch (_) { return false; }
+}
+
 /**
  * Cattura ogni slide come immagine dal render REALE del browser (Screen Capture API).
  * Ritorna un array di dataURL PNG (in ordine). Mostra un overlay a piena pagina durante la cattura.
@@ -234,26 +250,37 @@ export async function captureDeck(deck, opts = {}) {
     cursor: 'none', // l'overlay copre tutta la scheda → con cursor:none il browser NON disegna
   });               // il puntatore: la cattura DELLA SCHEDA non lo include (cursor:'never' su
                     // Edge/Windows è inaffidabile; questo è il rimedio che funziona per tab capture).
+  // Lo SCALING va su un elemento ESTERNO (scaler), NON sul target di restrictTo: un elemento
+  // con `transform` NON è idoneo all'Element Capture ("Element is not eligible for restriction").
+  const scaler = document.createElement('div');
+  scaler.style.transformOrigin = 'center center';
+  // wrapper (target di restrictTo): elemento "pulito" che forma uno stacking context (isolation)
+  // e CONTIENE lo stage iframe. Sull'iframe diretto restrictTo dava frame vuoti.
+  const wrapper = document.createElement('div');
+  Object.assign(wrapper.style, {
+    width: `${cw}px`, height: `${ch}px`, overflow: 'hidden', background: '#fff',
+    // Idoneità all'Element Capture (spec): formare uno stacking context (isolation:isolate) ed
+    // essere "appiattito" in 3D (transform-style:flat) e SENZA transform proprio (→ scaler).
+    isolation: 'isolate', transformStyle: 'flat',
+  });
   const stage = document.createElement('iframe');
   stage.setAttribute('aria-hidden', 'true');
-  Object.assign(stage.style, {
-    width: `${cw}px`, height: `${ch}px`, border: '0', background: '#fff',
-    transformOrigin: 'center center',
-  });
-  // Scala lo stage per riempire il viewport CORRENTE (va ricalcolato dopo il fullscreen, che
-  // cambia innerWidth/Height): a piena risoluzione = cattura più nitida.
+  Object.assign(stage.style, { width: '100%', height: '100%', border: '0', display: 'block', background: '#fff' });
+  wrapper.appendChild(stage);
+  scaler.appendChild(wrapper);
+  // Scala per riempire il viewport CORRENTE (transform sullo SCALER): a piena risoluzione = più nitido.
   const fitStage = () => {
     const s = Math.min(window.innerWidth / cw, window.innerHeight / ch);
-    stage.style.transform = `scale(${s})`;
+    scaler.style.transform = `scale(${s})`;
   };
   fitStage();
-  overlay.appendChild(stage);
+  overlay.appendChild(scaler);
   document.body.appendChild(overlay);
   // nascondi il cursore anche a livello documento durante la cattura (ripristino nel finally)
   const prevCursor = document.documentElement.style.cursor;
   document.documentElement.style.cursor = 'none';
 
-  let stream;
+  let stream, video;
   try {
     stream = await md.getDisplayMedia({
       video: { displaySurface: 'browser', frameRate: 30, cursor: 'never' },
@@ -265,28 +292,44 @@ export async function captureDeck(deck, opts = {}) {
 
     const track = stream.getVideoTracks()[0];
 
-    // Region Capture (cropTo): ritaglia il frame al solo stage. NB: Element Capture (restrictTo)
-    // escluderebbe il cursore ma su un IFRAME produce frame VUOTI → non utilizzabile qui.
-    let cropped = false; // true se il frame è già il solo stage
+    // Limita la cattura al solo wrapper. PRIORITÀ all'Element Capture (restrictTo): cattura il
+    // CONTENUTO dell'elemento escludendo gli overlay di sistema sopra → NIENTE CURSORE. Se non
+    // disponibile/efficace si ripiega su Region Capture (cropTo, che però include il cursore).
+    // Il fallback "frame vuoto" (sotto, alla prima slide) gestisce il caso in cui restrictTo non
+    // attraversi l'iframe.
+    let restricted = false, cropped = false;
     try {
-      if (window.CropTarget && CropTarget.fromElement && track.cropTo) {
-        const ct = await CropTarget.fromElement(stage);
-        await track.cropTo(ct);
-        cropped = true;
+      if (window.RestrictionTarget && RestrictionTarget.fromElement && track.restrictTo) {
+        const rt = await RestrictionTarget.fromElement(wrapper);
+        await track.restrictTo(rt);
+        restricted = true; cropped = true;
       }
-    } catch (_) { cropped = false; }
+    } catch (_) { restricted = false; }
+    if (!restricted) {
+      try {
+        if (window.CropTarget && CropTarget.fromElement && track.cropTo) {
+          const ct = await CropTarget.fromElement(wrapper);
+          await track.cropTo(ct);
+          cropped = true;
+        }
+      } catch (_) { cropped = false; }
+    }
 
-    // Sorgente video per i frame.
-    const video = document.createElement('video');
+    // Sorgente video. Va AGGIUNTA al DOM e bisogna attendere il PRIMO frame: senza, la cattura
+    // "non parte da sola" finché la scheda non riceve un'interazione. Niente ImageCapture.grabFrame
+    // (può bloccarsi): si disegna direttamente il <video> sul canvas (più affidabile).
+    video = document.createElement('video');
     video.muted = true; video.playsInline = true; video.srcObject = stream;
-    await video.play().catch(() => {});
-    await sleep(250); // assestamento pipeline di cattura
-
-    const ic = ('ImageCapture' in window) ? new ImageCapture(track) : null;
-    const grab = async () => {
-      if (ic && ic.grabFrame) { try { return await ic.grabFrame(); } catch (_) { /* fallback */ } }
-      return await createImageBitmap(video);
-    };
+    video.style.cssText = 'position:fixed;left:-99999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
+    document.body.appendChild(video);
+    try { window.focus(); } catch (_) { /* noop */ }
+    video.play().catch(() => {}); // NON awaited: con un track Element Capture play() può restare pending
+    await new Promise((res) => {
+      let done = false; const go = () => { if (done) return; done = true; res(); };
+      if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(() => go());
+      else video.addEventListener('playing', () => setTimeout(go, 150), { once: true });
+      setTimeout(go, 2500); // fallback: procedi comunque
+    });
 
     const images = [];
     const n = deck.slides.length;
@@ -306,15 +349,24 @@ export async function captureDeck(deck, opts = {}) {
       });
       // NB: niente requestAnimationFrame — durante la condivisione la scheda può essere
       // "throttled"/in background e i rAF non scattano (loop bloccato). I timer sì.
-      await sleep(320); // assestamento layout + arrivo del frame nuovo nello stream
+      await sleep(320); // assestamento layout
+      // Attendi un FRAME FRESCO del video (riflette la slide appena renderizzata e ha dimensioni
+      // valide): con Element Capture il primo frame può arrivare in ritardo / 0×0 → senza questa
+      // attesa il 1° draw è vuoto e scatta inutilmente il fallback a Region Capture (col cursore).
+      await new Promise((res) => {
+        let done = false; const go = () => { if (done) return; done = true; res(); };
+        if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(() => go());
+        else go();
+        setTimeout(go, 1500);
+      });
 
-      const bmp = await grab();
-      // Mappatura derivata dalla dimensione REALE del frame (robusta a dpr / scaling interno
-      // del track): NON usare devicePixelRatio, che non corrisponde alla dimensione del frame.
-      let sx = 0, sy = 0, sw = bmp.width, sh = bmp.height;
+      // Disegna il frame CORRENTE del <video> (lo stream è live; dopo render+sleep è aggiornato).
+      // Mappatura derivata dalla dimensione REALE del frame (videoWidth/Height), NON dal dpr.
+      const vw = video.videoWidth || 1, vh = video.videoHeight || 1;
+      let sx = 0, sy = 0, sw = vw, sh = vh;
       if (!cropped) {
-        const kx = bmp.width / window.innerWidth, ky = bmp.height / window.innerHeight;
-        const r = stage.getBoundingClientRect();
+        const kx = vw / window.innerWidth, ky = vh / window.innerHeight;
+        const r = wrapper.getBoundingClientRect();
         sx = Math.max(0, Math.round(r.left * kx));
         sy = Math.max(0, Math.round(r.top * ky));
         sw = Math.round(r.width * kx);
@@ -324,14 +376,32 @@ export async function captureDeck(deck, opts = {}) {
       const outW = Math.max(1, sw), outH = Math.max(1, Math.round(outW * ch / cw));
       const canvas = document.createElement('canvas');
       canvas.width = outW; canvas.height = outH;
-      canvas.getContext('2d').drawImage(bmp, sx, sy, sw, sh, 0, 0, outW, outH);
-      if (bmp.close) bmp.close();
+      canvas.getContext('2d').drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
+
+      // Auto-fallback: se l'Element Capture (restrictTo) non attraversa l'iframe, la 1ª slide
+      // esce VUOTA (uniforme). In quel caso annullo restrictTo, passo a Region Capture (cropTo)
+      // e ricomincio da capo: meglio la cattura col cursore che nessuna cattura.
+      if (i === 0 && restricted && isBlankCanvas(canvas)) {
+        try { await track.restrictTo(null); } catch (_) { /* noop */ }
+        restricted = false;
+        try {
+          if (window.CropTarget && CropTarget.fromElement && track.cropTo) {
+            const ct = await CropTarget.fromElement(wrapper);
+            await track.cropTo(ct); cropped = true;
+          } else { cropped = false; }
+        } catch (_) { cropped = false; }
+        await sleep(300);
+        i = -1; // ricomincia il ciclo dalla prima slide con la nuova modalità
+        continue;
+      }
+
       images.push(canvas.toDataURL('image/jpeg', 0.92)); // screenshot → JPEG: 3-5× più leggero
       if (typeof opts.onProgress === 'function') opts.onProgress(i + 1, n);
     }
     return images;
   } finally {
     if (stream) stream.getTracks().forEach((t) => t.stop());
+    if (video) { try { video.pause(); video.srcObject = null; video.remove(); } catch (_) { /* noop */ } }
     document.documentElement.style.cursor = prevCursor;
     overlay.remove();
   }
