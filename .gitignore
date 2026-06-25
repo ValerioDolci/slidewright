@@ -10,3 +10,5 @@ tests/_webview-harness.gen.html
 
 # note interne di sviluppo (non pubbliche)
 CLAUDE.md
+NEXT-RELEASE-TODO.md
+_local-demo/
