@@ -22,9 +22,10 @@
 </p>
 
 <p align="center">
-  <a href="https://valeriodolci.github.io/slidewright/"><img src="assets/demo-poster.png" alt="Slidewright — editing an HTML deck" width="760" /></a>
-  <br />
-  <a href="assets/demo.mp4"><b>▶ Watch the 8-second demo</b></a> · <a href="https://valeriodolci.github.io/slidewright/"><b>Try it live</b></a>
+  <video src="https://github.com/user-attachments/assets/7c483585-3de4-4058-889b-201d619817a1" poster="assets/demo-poster.png" controls muted loop width="760"></video>
+</p>
+<p align="center">
+  <a href="https://valeriodolci.github.io/slidewright/"><b>▶ Try it live</b></a> · <a href="assets/demo.mp4">Download the demo</a>
 </p>
 
 ---
