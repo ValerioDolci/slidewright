@@ -250,24 +250,28 @@ export async function captureDeck(deck, opts = {}) {
     cursor: 'none', // l'overlay copre tutta la scheda → con cursor:none il browser NON disegna
   });               // il puntatore: la cattura DELLA SCHEDA non lo include (cursor:'never' su
                     // Edge/Windows è inaffidabile; questo è il rimedio che funziona per tab capture).
-  // wrapper (div) che CONTIENE lo stage iframe: l'Element Capture (restrictTo) funziona se il
-  // target è un elemento "normale" — sull'iframe diretto dava frame vuoti.
+  // Lo SCALING va su un elemento ESTERNO (scaler), NON sul target di restrictTo: un elemento
+  // con `transform` NON è idoneo all'Element Capture ("Element is not eligible for restriction").
+  const scaler = document.createElement('div');
+  scaler.style.transformOrigin = 'center center';
+  // wrapper (target di restrictTo): elemento "pulito" che forma uno stacking context (isolation)
+  // e CONTIENE lo stage iframe. Sull'iframe diretto restrictTo dava frame vuoti.
   const wrapper = document.createElement('div');
   Object.assign(wrapper.style, {
-    width: `${cw}px`, height: `${ch}px`, overflow: 'hidden', background: '#fff',
-    transformOrigin: 'center center',
+    width: `${cw}px`, height: `${ch}px`, overflow: 'hidden', background: '#fff', isolation: 'isolate',
   });
   const stage = document.createElement('iframe');
   stage.setAttribute('aria-hidden', 'true');
   Object.assign(stage.style, { width: '100%', height: '100%', border: '0', display: 'block', background: '#fff' });
   wrapper.appendChild(stage);
-  // Scala il wrapper per riempire il viewport CORRENTE: a piena risoluzione = cattura più nitida.
+  scaler.appendChild(wrapper);
+  // Scala per riempire il viewport CORRENTE (transform sullo SCALER): a piena risoluzione = più nitido.
   const fitStage = () => {
     const s = Math.min(window.innerWidth / cw, window.innerHeight / ch);
-    wrapper.style.transform = `scale(${s})`;
+    scaler.style.transform = `scale(${s})`;
   };
   fitStage();
-  overlay.appendChild(wrapper);
+  overlay.appendChild(scaler);
   document.body.appendChild(overlay);
   // nascondi il cursore anche a livello documento durante la cattura (ripristino nel finally)
   const prevCursor = document.documentElement.style.cursor;
