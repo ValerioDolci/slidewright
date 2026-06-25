@@ -216,6 +216,22 @@ html,body{margin:0;padding:0;}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** True se il canvas è (quasi) uniforme su punti sparsi → frame vuoto (restrictTo non riuscito). */
+function isBlankCanvas(canvas) {
+  try {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    const pts = [[0.5, 0.5], [0.2, 0.3], [0.8, 0.3], [0.2, 0.7], [0.8, 0.7], [0.5, 0.15], [0.5, 0.85]];
+    let r0 = -1, g0 = -1, b0 = -1, variance = 0;
+    for (const [fx, fy] of pts) {
+      const d = ctx.getImageData(Math.min(w - 1, fx * w | 0), Math.min(h - 1, fy * h | 0), 1, 1).data;
+      if (r0 < 0) { r0 = d[0]; g0 = d[1]; b0 = d[2]; }
+      variance += Math.abs(d[0] - r0) + Math.abs(d[1] - g0) + Math.abs(d[2] - b0);
+    }
+    return variance < 12; // tutti i campioni quasi identici → nessun contenuto
+  } catch (_) { return false; }
+}
+
 /**
  * Cattura ogni slide come immagine dal render REALE del browser (Screen Capture API).
  * Ritorna un array di dataURL PNG (in ordine). Mostra un overlay a piena pagina durante la cattura.
@@ -234,20 +250,24 @@ export async function captureDeck(deck, opts = {}) {
     cursor: 'none', // l'overlay copre tutta la scheda → con cursor:none il browser NON disegna
   });               // il puntatore: la cattura DELLA SCHEDA non lo include (cursor:'never' su
                     // Edge/Windows è inaffidabile; questo è il rimedio che funziona per tab capture).
-  const stage = document.createElement('iframe');
-  stage.setAttribute('aria-hidden', 'true');
-  Object.assign(stage.style, {
-    width: `${cw}px`, height: `${ch}px`, border: '0', background: '#fff',
+  // wrapper (div) che CONTIENE lo stage iframe: l'Element Capture (restrictTo) funziona se il
+  // target è un elemento "normale" — sull'iframe diretto dava frame vuoti.
+  const wrapper = document.createElement('div');
+  Object.assign(wrapper.style, {
+    width: `${cw}px`, height: `${ch}px`, overflow: 'hidden', background: '#fff',
     transformOrigin: 'center center',
   });
-  // Scala lo stage per riempire il viewport CORRENTE (va ricalcolato dopo il fullscreen, che
-  // cambia innerWidth/Height): a piena risoluzione = cattura più nitida.
+  const stage = document.createElement('iframe');
+  stage.setAttribute('aria-hidden', 'true');
+  Object.assign(stage.style, { width: '100%', height: '100%', border: '0', display: 'block', background: '#fff' });
+  wrapper.appendChild(stage);
+  // Scala il wrapper per riempire il viewport CORRENTE: a piena risoluzione = cattura più nitida.
   const fitStage = () => {
     const s = Math.min(window.innerWidth / cw, window.innerHeight / ch);
-    stage.style.transform = `scale(${s})`;
+    wrapper.style.transform = `scale(${s})`;
   };
   fitStage();
-  overlay.appendChild(stage);
+  overlay.appendChild(wrapper);
   document.body.appendChild(overlay);
   // nascondi il cursore anche a livello documento durante la cattura (ripristino nel finally)
   const prevCursor = document.documentElement.style.cursor;
@@ -265,16 +285,28 @@ export async function captureDeck(deck, opts = {}) {
 
     const track = stream.getVideoTracks()[0];
 
-    // Region Capture (cropTo): ritaglia il frame al solo stage. NB: Element Capture (restrictTo)
-    // escluderebbe il cursore ma su un IFRAME produce frame VUOTI → non utilizzabile qui.
-    let cropped = false; // true se il frame è già il solo stage
+    // Limita la cattura al solo wrapper. PRIORITÀ all'Element Capture (restrictTo): cattura il
+    // CONTENUTO dell'elemento escludendo gli overlay di sistema sopra → NIENTE CURSORE. Se non
+    // disponibile/efficace si ripiega su Region Capture (cropTo, che però include il cursore).
+    // Il fallback "frame vuoto" (sotto, alla prima slide) gestisce il caso in cui restrictTo non
+    // attraversi l'iframe.
+    let restricted = false, cropped = false;
     try {
-      if (window.CropTarget && CropTarget.fromElement && track.cropTo) {
-        const ct = await CropTarget.fromElement(stage);
-        await track.cropTo(ct);
-        cropped = true;
+      if (window.RestrictionTarget && RestrictionTarget.fromElement && track.restrictTo) {
+        const rt = await RestrictionTarget.fromElement(wrapper);
+        await track.restrictTo(rt);
+        restricted = true; cropped = true;
       }
-    } catch (_) { cropped = false; }
+    } catch (_) { restricted = false; }
+    if (!restricted) {
+      try {
+        if (window.CropTarget && CropTarget.fromElement && track.cropTo) {
+          const ct = await CropTarget.fromElement(wrapper);
+          await track.cropTo(ct);
+          cropped = true;
+        }
+      } catch (_) { cropped = false; }
+    }
 
     // Sorgente video per i frame.
     const video = document.createElement('video');
@@ -314,7 +346,7 @@ export async function captureDeck(deck, opts = {}) {
       let sx = 0, sy = 0, sw = bmp.width, sh = bmp.height;
       if (!cropped) {
         const kx = bmp.width / window.innerWidth, ky = bmp.height / window.innerHeight;
-        const r = stage.getBoundingClientRect();
+        const r = wrapper.getBoundingClientRect();
         sx = Math.max(0, Math.round(r.left * kx));
         sy = Math.max(0, Math.round(r.top * ky));
         sw = Math.round(r.width * kx);
@@ -326,6 +358,24 @@ export async function captureDeck(deck, opts = {}) {
       canvas.width = outW; canvas.height = outH;
       canvas.getContext('2d').drawImage(bmp, sx, sy, sw, sh, 0, 0, outW, outH);
       if (bmp.close) bmp.close();
+
+      // Auto-fallback: se l'Element Capture (restrictTo) non attraversa l'iframe, la 1ª slide
+      // esce VUOTA (uniforme). In quel caso annullo restrictTo, passo a Region Capture (cropTo)
+      // e ricomincio da capo: meglio la cattura col cursore che nessuna cattura.
+      if (i === 0 && restricted && isBlankCanvas(canvas)) {
+        try { await track.restrictTo(null); } catch (_) { /* noop */ }
+        restricted = false;
+        try {
+          if (window.CropTarget && CropTarget.fromElement && track.cropTo) {
+            const ct = await CropTarget.fromElement(wrapper);
+            await track.cropTo(ct); cropped = true;
+          } else { cropped = false; }
+        } catch (_) { cropped = false; }
+        await sleep(300);
+        i = -1; // ricomincia il ciclo dalla prima slide con la nuova modalità
+        continue;
+      }
+
       images.push(canvas.toDataURL('image/jpeg', 0.92)); // screenshot → JPEG: 3-5× più leggero
       if (typeof opts.onProgress === 'function') opts.onProgress(i + 1, n);
     }
