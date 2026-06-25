@@ -265,16 +265,11 @@ export async function captureDeck(deck, opts = {}) {
 
     const track = stream.getVideoTracks()[0];
 
-    // Limita la cattura al solo stage. PRIORITÀ alla Element Capture (restrictTo): cattura il
-    // CONTENUTO dell'elemento escludendo gli overlay sopra → niente cursore di sistema (che la
-    // Region Capture/cropTo includerebbe). Fallback: Region Capture, poi ritaglio manuale.
-    let cropped = false; // true se il frame è già il solo stage (restrictTo o cropTo)
+    // Region Capture (cropTo): ritaglia il frame al solo stage. NB: Element Capture (restrictTo)
+    // escluderebbe il cursore ma su un IFRAME produce frame VUOTI → non utilizzabile qui.
+    let cropped = false; // true se il frame è già il solo stage
     try {
-      if (window.RestrictionTarget && RestrictionTarget.fromElement && track.restrictTo) {
-        const rt = await RestrictionTarget.fromElement(stage);
-        await track.restrictTo(rt);
-        cropped = true;
-      } else if (window.CropTarget && CropTarget.fromElement && track.cropTo) {
+      if (window.CropTarget && CropTarget.fromElement && track.cropTo) {
         const ct = await CropTarget.fromElement(stage);
         await track.cropTo(ct);
         cropped = true;
@@ -309,8 +304,9 @@ export async function captureDeck(deck, opts = {}) {
         const d = stage.contentDocument; d.open(); d.write(inner); d.close();
         setTimeout(finish, 1400);
       });
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      await sleep(220); // lascia che il frame nuovo arrivi nello stream (latenza cattura)
+      // NB: niente requestAnimationFrame — durante la condivisione la scheda può essere
+      // "throttled"/in background e i rAF non scattano (loop bloccato). I timer sì.
+      await sleep(320); // assestamento layout + arrivo del frame nuovo nello stream
 
       const bmp = await grab();
       // Mappatura derivata dalla dimensione REALE del frame (robusta a dpr / scaling interno
