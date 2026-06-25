@@ -369,14 +369,15 @@ export async function captureDeck(deck, opts = {}) {
     document.body.appendChild(video);
     try { window.focus(); } catch (_) { /* noop */ }
     video.play().catch(() => {}); // NON awaited: con un track di cattura play() può restare pending
-    await waitFrame(2500);
+    await waitFrame(1800);
 
     const images = [];
     const n = deck.slides.length;
     for (let i = 0; i < n; i++) {
       renderSlide(i);
-      await sleep(350);     // assestamento layout + decode immagini base64
-      await waitFrame(1500); // frame fresco che riflette la slide corrente
+      await sleep(120);      // assestamento layout + decode immagini base64
+      await waitFrame(450);  // 1° frame fresco (in transito) — Element Capture lo emette a ogni render
+      await waitFrame(450);  // 2° frame: garantisce che rifletta GIÀ la slide corrente (no sfasamenti)
 
       const fw = video.videoWidth || 1, fh = video.videoHeight || 1;
       let sx = 0, sy = 0, sw = fw, sh = fh;

@@ -938,20 +938,28 @@ export class App {
   }
 
   async _exportPdf() {
+    if (this._exporting) { this._hint('Un export è già in corso…'); return; }
     this.commitStage(null);
     // Raster ON di default: PDF fedele su ogni device (immagini, niente trasparenze da comporre).
     // Spegnibile (PDF vettoriale, testo selezionabile) dal toggle accanto al bottone.
     const raster = this.platform.storage.get('ss-pdf-raster') !== 'off';
+    this._exporting = true;
     this._hint(raster
       ? 'Preparo il PDF nitido (immagini)… poi scegli "Salva come PDF".'
       : 'Apertura stampa… scegli "Salva come PDF" e attiva "Grafica di sfondo".');
-    await this.platform.exportPdf(store.deck, { raster });
+    try {
+      await this.platform.exportPdf(store.deck, { raster });
+    } finally {
+      this._exporting = false;
+    }
   }
 
   async _capturePdf() {
+    if (this._exporting) { this._hint('Un export è già in corso…'); return; }
     this.commitStage(null);
     if (typeof this.platform.capturePdf !== 'function') { this._hint('Cattura non disponibile in questo ambiente.'); return; }
-    this._hint('Scegli "Questa scheda" nel popup e tieni il mouse in un angolo. F11 = più nitida.');
+    this._exporting = true;
+    this._hint('Consenti la condivisione se richiesto: catturo le slide…');
     try {
       await this.platform.capturePdf(store.deck, {
         onProgress: (i, tot) => this._hint(`Cattura slide ${i}/${tot}…`),
@@ -959,6 +967,8 @@ export class App {
       this._hint('Cattura completata: scegli "Salva come PDF".');
     } catch (e) {
       this._hint(`Cattura annullata o non riuscita${e && e.message ? ': ' + e.message : ''}.`);
+    } finally {
+      this._exporting = false;
     }
   }
 
