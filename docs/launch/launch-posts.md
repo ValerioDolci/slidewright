@@ -8,7 +8,15 @@
 
 ## 1) Show HN (Hacker News) — il colpo grosso
 
-**Quando**: martedì–giovedì, ~15:00–17:00 CET (mattina USA). Solo DOPO che la GIF è nel README.
+**Quando**: martedì–giovedì, ~15:00–17:00 CEST (mattina USA). Solo DOPO che la GIF è nel README.
+
+**Checklist prima di postare (5 minuti):**
+- [ ] GIF demo in cima al README (precondizione assoluta — senza, non postare)
+- [ ] La demo live apre e funziona: https://valeriodolci.github.io/slidewright/
+- [ ] README: bottoni "Try it live" / "Download" visibili in alto (già fatto)
+- [ ] Sei libero le 2 ore successive per rispondere ai commenti
+- [ ] Account HN creato e loggato
+
 **Titolo** (campo title, max ~80 char — niente emoji, niente hype):
 
 ```
@@ -31,7 +39,7 @@ move/resize/rotate elements, recolour, crop images to shapes, undo/redo — then
 export a clean standalone HTML or a true-16:9 PDF (1 slide = 1 page).
 
 It's deliberately local-first: no server, no account, no telemetry, no Google
-Fonts. The whole thing is a single ~140 KB HTML file with zero runtime
+Fonts. The whole thing is a single self-contained HTML file with zero runtime
 dependencies — you can download it and double-click it; it runs from file://.
 Your deck never leaves your machine. There's also a VS Code extension that shares
 the same engine.
