@@ -73,10 +73,19 @@ export class WebPlatform {
         this._handle = handle;
         await writeHandle(handle, html);
         return { status: 'saved', name: handle.name };
-      } catch (_) { return { status: 'cancelled' }; }
+      } catch (e) {
+        // L'utente ha chiuso il picker → non fare nulla.
+        if (e && e.name === 'AbortError') return { status: 'cancelled' };
+        // Altri errori (File System Access bloccata da policy aziendale, permesso di
+        // scrittura negato, contesto non sicuro…) → ripiego sul download, che non è
+        // mai bloccato (è quello che usa "Esporta HTML"). Così "Salva" produce sempre
+        // un file su qualunque PC/browser.
+        downloadText(suggestedName, html);
+        return { status: 'saved', name: suggestedName, fallback: true };
+      }
     }
     downloadText(suggestedName, html);
-    return { status: 'saved', name: suggestedName };
+    return { status: 'saved', name: suggestedName, fallback: true };
   }
 
   discardCurrent() { this._handle = null; }
@@ -96,8 +105,10 @@ export class WebPlatform {
   present(html) {
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
+    const win = window.open(url, '_blank');
     setTimeout(() => URL.revokeObjectURL(url), 10000);
-    return Promise.resolve();
+    // win === null → pop-up bloccato dal browser (comune sui PC gestiti): l'App avvisa
+    // invece di fallire in silenzio (vedi anche il fallback di "Salva").
+    return Promise.resolve({ opened: !!win });
   }
 }

@@ -936,24 +936,34 @@ export class App {
     try {
       const r = await this.platform.save(buildDeckHtml(store.deck));
       if (r === 'no-doc') return this._saveAs();
-      if (r === 'denied') { this._setFileStatus('permesso negato'); return; }
-      if (r === 'error') { this._setFileStatus('errore salvataggio'); return; }
+      // Scrittura sul file negata/bloccata (es. policy aziendale su Chrome/Edge gestiti):
+      // ripiega su "salva come" → se anche il picker è bloccato, finisce in download.
+      if (r === 'denied' || r === 'error') return this._saveAs();
       this._dirty = false;
       this._updateFileStatus();
     } catch (_) {
-      this._setFileStatus('errore salvataggio'); // _dirty resta true
+      return this._saveAs(); // ultimo ripiego: niente fallimento silenzioso
     }
   }
 
   async _saveAs() {
     clearTimeout(this._saveT);
     this.commitStage(null);
-    const name = `${slug(store.deck.meta.title)}.html`;
+    // Proponi il nome del file ORIGINALE (se aperto da disco): così, quando il salvataggio
+    // diretto è bloccato e si ripiega sul "Salva con nome"/download, l'utente trova già il
+    // nome giusto e può sovrascrivere l'originale con un clic (serve "chiedi dove salvare"
+    // attivo nel browser). Fallback: il titolo del deck.
+    const name = this._fileName || `${slug(store.deck.meta.title)}.html`;
     const r = await this.platform.saveAs(buildDeckHtml(store.deck), name);
     if (r.status !== 'saved') return; // annullato / errore
     this._fileName = r.name || name;
     this._dirty = false;
     this._updateFileStatus();
+    if (r.fallback) {
+      // Il salvataggio diretto sul file non è disponibile (browser/policy) → è stata
+      // scaricata una copia. Avvisa, così l'utente sa dove cercarla.
+      this._hint('Salvataggio sul file non disponibile in questo browser: scaricata una copia in Download.');
+    }
   }
 
   _markDirty() {
@@ -1029,9 +1039,12 @@ export class App {
     }
   }
 
-_present() {
+async _present() {
     this.commitStage(null);
-    this.platform.present(buildDeckHtml(store.deck));
+    const r = await this.platform.present(buildDeckHtml(store.deck));
+    if (r && r.opened === false) {
+      this._hint('Presentazione bloccata dal browser (pop-up): consenti i pop-up per questo sito e riprova.');
+    }
   }
 
   // ---------- misc ----------

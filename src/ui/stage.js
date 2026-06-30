@@ -469,10 +469,25 @@ export class Stage {
     const onPaste = (ev) => {
       ev.preventDefault();
       const text = (ev.clipboardData || this.frame.contentWindow.clipboardData)?.getData('text/plain') || '';
-      this.doc.execCommand('insertText', false, text);
+      // Inserisci riga per riga: insertText con '\n' creerebbe blocchi <div> (anche DENTRO
+      // un <p>) → stesso difetto dell'Invio (testo spinto in fondo dopo il re-parse). Con
+      // insertLineBreak (<br>) il testo resta dentro l'elemento → round-trip stabile.
+      text.split(/\r\n|\r|\n/).forEach((line, i) => {
+        if (i) this.doc.execCommand('insertLineBreak');
+        if (line) this.doc.execCommand('insertText', false, line);
+      });
     };
     elm.addEventListener('paste', onPaste);
-    const onBlur = () => { elm.removeEventListener('paste', onPaste); this._endEditing(); };
+    // Invio = a capo con <br>, NON un nuovo blocco <div>. Di default contenteditable
+    // inserisce un <div> DENTRO l'elemento (anche dentro un <p>): l'HTML serializzato
+    // <p>…<div>…</div></p> al re-parse si spezza in <p> vuoto + <div> fratelli → se il
+    // <p> ha flex:1 cresce e SPINGE il testo in fondo al box (bug "testo in basso" in
+    // editor/HTML/PDF). Con <br> il testo resta dentro l'elemento → round-trip stabile.
+    const onKeydown = (ev) => {
+      if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); this.doc.execCommand('insertLineBreak'); }
+    };
+    elm.addEventListener('keydown', onKeydown);
+    const onBlur = () => { elm.removeEventListener('paste', onPaste); elm.removeEventListener('keydown', onKeydown); this._endEditing(); };
     elm.addEventListener('blur', onBlur, { once: true });
     this.onEditStart(); // l'App nasconde il box di selezione (caret libero)
   }

@@ -224,6 +224,10 @@ const EN = {
   'Altri elementi sovrapposti qui: ⌘-click o Tab per raggiungere quelli sotto.':
     'Overlapping elements here: ⌘-click or Tab to reach the ones below.',
   'HTML esportato (copia separata).': 'HTML exported (separate copy).',
+  'Salvataggio sul file non disponibile in questo browser: scaricata una copia in Download.':
+    'Saving to the file is not available in this browser: a copy was downloaded to Downloads.',
+  'Presentazione bloccata dal browser (pop-up): consenti i pop-up per questo sito e riprova.':
+    'Presentation blocked by the browser (pop-up): allow pop-ups for this site and retry.',
   'Apertura stampa… scegli "Salva come PDF" e attiva "Grafica di sfondo".':
     'Opening print… choose "Save as PDF" and enable "Background graphics".',
   'Hai modifiche non salvate. Continuare e perderle?': 'You have unsaved changes. Continue and lose them?',

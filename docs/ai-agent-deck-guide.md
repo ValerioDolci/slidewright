@@ -142,6 +142,12 @@ the box is exactly 720 px tall everywhere, the bottom stays put.
   the element itself, so the fill control works predictably.
 - Each top-level visual element should be a distinct node (not one giant nested blob), so it
   can be selected, moved, recolored, duplicated.
+- Keep each run of text **inside its own styled element**, and don't rely on an empty sibling
+  to reserve vertical space: an empty `flex:1` text holder would grow once edited and push the
+  content to the bottom of the card. Anchor body text directly in the element that styles it.
+- Text edits are **plain text**: a new line is inserted as a `<br>` inside the same element —
+  the editor never splits text into new `<div>`/`<p>` blocks — so layouts stay stable on
+  save/reopen and in the PDF.
 
 ---
 
